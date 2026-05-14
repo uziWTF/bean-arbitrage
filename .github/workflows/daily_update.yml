@@ -42,6 +42,18 @@ jobs:
       - name: Generate HTML site
         run: python githubaction/generate_html.py
 
+      - name: Commit updated data back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add githubaction/data/pairs_data.json githubaction/data/commodities.json
+          if git diff --cached --quiet; then
+            echo "No data changes to commit"
+          else
+            git commit -m "auto: update data ${{ github.event.schedule || 'manual' }}"
+            git push
+          fi
+
       - name: Send email alerts
         if: hashFiles('githubaction/data/alerts.json') != ''
         env:
