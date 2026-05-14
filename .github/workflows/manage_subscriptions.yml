@@ -21,12 +21,12 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            const path = require('path');
             const issue = context.payload.issue;
             const title = issue.title;
             const body = issue.body || '';
 
-            // 读取订阅者文件
-            const subscribersPath = 'githubaction/data/subscribers.json';
+            const subscribersPath = path.join('githubaction', 'data', 'subscribers.json');
             let subscribers = { subscribers: [] };
             try {
               const data = fs.readFileSync(subscribersPath, 'utf8');
@@ -35,7 +35,6 @@ jobs:
               console.log('订阅者文件不存在，将创建新文件');
             }
 
-            // 提取邮箱
             const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
             const emails = body.match(emailRegex);
 
@@ -52,17 +51,17 @@ jobs:
                 issue_number: issue.number,
                 state: 'closed'
               });
+              core.setFailed('No valid email found');
               return;
             }
 
             const email = emails[0];
 
             if (title.includes('取消订阅')) {
-              // 取消订阅
               const idx = subscribers.subscribers.findIndex(s => s.email === email);
               if (idx >= 0) {
                 subscribers.subscribers[idx].active = false;
-                fs.writeFileSync(subscribersPath, JSON.stringify(subscribers, null, 2));
+                fs.writeFileSync(subscribersPath, JSON.stringify(subscribers, null, 2), 'utf8');
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -78,7 +77,6 @@ jobs:
                 });
               }
             } else {
-              // 订阅
               const existing = subscribers.subscribers.find(s => s.email === email);
               if (existing) {
                 existing.active = true;
@@ -101,10 +99,9 @@ jobs:
                   body: `✅ 订阅成功！邮箱：${email}\n\n当检测到极端信号时，您将收到邮件通知。`
                 });
               }
-              fs.writeFileSync(subscribersPath, JSON.stringify(subscribers, null, 2));
+              fs.writeFileSync(subscribersPath, JSON.stringify(subscribers, null, 2), 'utf8');
             }
 
-            // 关闭 Issue
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -112,10 +109,17 @@ jobs:
               state: 'closed'
             });
 
-      - name: Commit updated subscribers
+      - name: Verify file exists
+        run: cat githubaction/data/subscribers.json
+
+      - name: Commit and push
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add githubaction/data/subscribers.json
-          git diff --staged --quiet || git commit -m "auto: update subscribers list"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "auto: update subscribers list"
+            git push
+          fi
