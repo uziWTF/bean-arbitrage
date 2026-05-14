@@ -6,7 +6,7 @@ on:
 
 jobs:
   process-subscription:
-    if: contains(github.event.issue.title, '订阅') || contains(github.event.issue.title, '取消订阅')
+    if: contains(github.event.issue.title, '订阅邮件通知:') || contains(github.event.issue.title, '取消订阅:')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -24,7 +24,6 @@ jobs:
             const path = require('path');
             const issue = context.payload.issue;
             const title = issue.title;
-            const body = issue.body || '';
 
             const subscribersPath = path.join('githubaction', 'data', 'subscribers.json');
             let subscribers = { subscribers: [] };
@@ -35,15 +34,14 @@ jobs:
               console.log('订阅者文件不存在，将创建新文件');
             }
 
-            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const emails = body.match(emailRegex);
-
-            if (!emails || emails.length === 0) {
+            // 从标题中提取邮箱: "订阅邮件通知: xxx@xxx.com" 或 "取消订阅: xxx@xxx.com"
+            const emailMatch = title.match(/[:：]\s*(.+)/);
+            if (!emailMatch) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issue.number,
-                body: '❌ 未找到有效的邮箱地址。请在 Issue 正文中包含您的邮箱地址。'
+                body: '❌ 未找到有效的邮箱地址。'
               });
               await github.rest.issues.update({
                 owner: context.repo.owner,
@@ -51,11 +49,10 @@ jobs:
                 issue_number: issue.number,
                 state: 'closed'
               });
-              core.setFailed('No valid email found');
               return;
             }
 
-            const email = emails[0];
+            const email = emailMatch[1].trim();
 
             if (title.includes('取消订阅')) {
               const idx = subscribers.subscribers.findIndex(s => s.email === email);
@@ -108,9 +105,6 @@ jobs:
               issue_number: issue.number,
               state: 'closed'
             });
-
-      - name: Verify file exists
-        run: cat githubaction/data/subscribers.json
 
       - name: Commit and push
         run: |
