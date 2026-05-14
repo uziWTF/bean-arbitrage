@@ -2,8 +2,12 @@ name: Daily Update and Deploy
 
 on:
   schedule:
-    # 每周一到周五 07:20 UTC = 北京时间 15:20（收盘后20分钟）
-    - cron: '20 7 * * 1-5'
+    # 每周一到周五 04:30 UTC = 北京时间 12:30（午盘后）
+    - cron: '30 4 * * 1-5'
+    # 每周一到周五 07:30 UTC = 北京时间 15:30（收盘后，保存历史数据）
+    - cron: '30 7 * * 1-5'
+    # 每周一到周五 15:30 UTC = 北京时间 23:30（晚间更新）
+    - cron: '30 15 * * 1-5'
   workflow_dispatch: # 手动触发
 
 jobs:
@@ -43,6 +47,7 @@ jobs:
         run: python githubaction/generate_html.py
 
       - name: Commit updated data back to repo
+        if: github.event.schedule == '30 7 * * 1-5' || github.event_name == 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -50,7 +55,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No data changes to commit"
           else
-            git commit -m "auto: update data ${{ github.event.schedule || 'manual' }}"
+            git commit -m "auto: update closing data $(date +%Y-%m-%d)"
             git push
           fi
 
