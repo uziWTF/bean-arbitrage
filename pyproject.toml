@@ -1,0 +1,13 @@
+[project]
+name = "arbitrage"
+version = "0.1.0"
+description = "期货套利数据分析系统"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.3.3",
+    "selenium>=4.15.0",
+    "openpyxl>=3.1.0",
+    "matplotlib>=3.8.0",
+    "numpy>=1.26.0",
+    "scipy>=1.11.0",
+]

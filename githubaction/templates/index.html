@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>豆类套利分析 - 实时监控</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2218%22 fill=%22%2300d4aa%22/><text x=%2250%22 y=%2268%22 font-size=%2242%22 font-weight=%22700%22 fill=%22%23fff%22 text-anchor=%22middle%22>DA</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-title">
+                <h1><span class="icon">&#127968;</span> 豆类期货套利分析</h1>
+                <div class="subtitle">实时监控 6 个品种对的比值/差值变化</div>
+            </div>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span>更新于 {{ last_updated }}</span>
+            </div>
+        </header>
+
+        <!-- Summary Cards -->
+        <div class="summary-grid">
+            {% for pair in pairs %}
+            <div class="summary-card" onclick="scrollToDetail('{{ pair.id }}')" style="--card-accent: {{ pair.current.status_color }}">
+                <div class="card-pair-name">{{ pair.name_zh }}</div>
+                <div class="card-metric-value">{{ pair.current.value | format_metric(pair.metric_type) }}</div>
+                <div class="card-metric-label">{{ pair.metric_label }} ({{ pair.name1 }}{{ '/' if pair.metric_type == 'ratio' else '-' }}{{ pair.name2 }})</div>
+                <div class="card-bottom">
+                    <span class="percentile-badge {{ pair.current.status_type }}">{{ pair.current.percentile }}% 分位</span>
+                    <span class="card-status-text">{{ pair.current.status_text }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Detail Sections -->
+        {% for pair in pairs %}
+        <div class="detail-section" id="detail-{{ pair.id }}">
+            <div class="detail-header">
+                <div class="detail-title">
+                    {{ pair.name_zh }}
+                    <span class="metric-type">{{ pair.metric_label }}</span>
+                </div>
+                <div class="detail-current">
+                    <div class="detail-current-value" style="color: {{ pair.current.status_color }}">
+                        {{ pair.current.value | format_metric(pair.metric_type) }}
+                    </div>
+                    <div class="detail-current-info">
+                        <div class="detail-current-percentile" style="color: {{ pair.current.status_color }}">
+                            {{ pair.current.percentile }}% 分位
+                        </div>
+                        <div class="detail-current-zscore">Z-Score: {{ pair.current.z_score }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-container" id="chart-{{ pair.id }}"></div>
+            <table class="stats-table">
+                <tr>
+                    <th>均值</th>
+                    <td>{{ pair.statistics.mean | format_stat(pair.metric_type) }}</td>
+                    <th>中位数</th>
+                    <td>{{ pair.statistics.median | format_stat(pair.metric_type) }}</td>
+                    <th>标准差</th>
+                    <td>{{ pair.statistics.std | format_stat(pair.metric_type) }}</td>
+                </tr>
+                <tr>
+                    <th>最小值</th>
+                    <td>{{ pair.statistics.min | format_stat(pair.metric_type) }}</td>
+                    <th>最大值</th>
+                    <td>{{ pair.statistics.max | format_stat(pair.metric_type) }}</td>
+                    <th>样本数</th>
+                    <td>{{ pair.statistics.count }}</td>
+                </tr>
+                <tr>
+                    <th>25% 分位</th>
+                    <td>{{ pair.statistics.q25 | format_stat(pair.metric_type) }}</td>
+                    <th>75% 分位</th>
+                    <td>{{ pair.statistics.q75 | format_stat(pair.metric_type) }}</td>
+                    <th>偏度</th>
+                    <td>{{ pair.statistics.skewness }}</td>
+                </tr>
+            </table>
+        </div>
+        {% endfor %}
+
+        <!-- Subscribe Section -->
+        <div class="subscribe-section">
+            <h3>&#128231; 邮件订阅</h3>
+            <p>当品种对比值/差值出现极端信号（超过 1% 或 99% 分位）时，我们会通过邮件通知您</p>
+            <a href="{{ repo_url }}/issues/new?template=subscribe.yml" class="subscribe-btn" target="_blank">
+                &#9993; 订阅邮件通知
+            </a>
+        </div>
+
+        <!-- Footer -->
+        <footer>
+            <p>数据来源: <a href="https://quote.eastmoney.com" target="_blank">东方财富网</a> | 每日自动更新 | <a href="{{ repo_url }}" target="_blank">GitHub 仓库</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // Pair data for charts
+        const pairsData = {{ pairs_json | safe }};
+
+        // Format metric value
+        function formatMetric(value, type) {
+            if (type === 'ratio') {
+                return value.toFixed(4);
+            }
+            return value.toLocaleString('zh-CN', {maximumFractionDigits: 0});
+        }
+
+        // Scroll to detail section
+        function scrollToDetail(pairId) {
+            const el = document.getElementById('detail-' + pairId);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        // Initialize charts
+        function initCharts() {
+            pairsData.forEach(pair => {
+                const chartDom = document.getElementById('chart-' + pair.id);
+                if (!chartDom) return;
+
+                const chart = echarts.init(chartDom, null, { renderer: 'canvas' });
+                const dates = pair.data.map(d => d.date);
+                const metrics = pair.data.map(d => d.metric);
+                const mean = pair.statistics.mean;
+                const std = pair.statistics.std;
+                const upperBand = mean + 1.5 * std;
+                const lowerBand = mean - 1.5 * std;
+
+                // Determine line color based on current percentile
+                const currentPercentile = pair.current.percentile;
+                let lineColor = '#00d4aa';
+                if (currentPercentile <= 10 || currentPercentile >= 90) {
+                    lineColor = '#ff4757';
+                } else if (currentPercentile <= 25 || currentPercentile >= 75) {
+                    lineColor = '#ff9500';
+                }
+
+                const option = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'axis',
+                        backgroundColor: 'rgba(26, 35, 50, 0.95)',
+                        borderColor: '#2a3a4a',
+                        textStyle: { color: '#e8eaed', fontSize: 13 },
+                        formatter: function(params) {
+                            const p = params[0];
+                            if (!p) return '';
+                            const value = p.value;
+                            const formatted = pair.metric_type === 'ratio' ? value.toFixed(4) : value.toLocaleString();
+                            return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>` +
+                                   `<div>${pair.metric_label}: <span style="color:${lineColor};font-weight:700">${formatted}</span></div>` +
+                                   `<div style="color:#8892a0;font-size:12px;margin-top:4px">均值: ${mean.toFixed(4)} | Z: ${((value - mean) / std).toFixed(2)}</div>`;
+                        }
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '12%',
+                        top: '8%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: dates,
+                        axisLine: { lineStyle: { color: '#2a3a4a' } },
+                        axisLabel: { color: '#8892a0', fontSize: 11 },
+                        splitLine: { show: false }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        axisLine: { show: false },
+                        axisLabel: {
+                            color: '#8892a0',
+                            fontSize: 11,
+                            formatter: function(val) {
+                                return pair.metric_type === 'ratio' ? val.toFixed(2) : val.toLocaleString();
+                            }
+                        },
+                        splitLine: { lineStyle: { color: '#2a3a4a', type: 'dashed' } }
+                    },
+                    dataZoom: [
+                        {
+                            type: 'slider',
+                            start: 70,
+                            end: 100,
+                            height: 20,
+                            bottom: 5,
+                            borderColor: '#2a3a4a',
+                            backgroundColor: 'rgba(26, 35, 50, 0.8)',
+                            fillerColor: 'rgba(0, 212, 170, 0.1)',
+                            handleStyle: { color: '#00d4aa' },
+                            textStyle: { color: '#8892a0' }
+                        },
+                        { type: 'inside' }
+                    ],
+                    series: [
+                        {
+                            name: pair.metric_label,
+                            type: 'line',
+                            data: metrics,
+                            smooth: true,
+                            symbol: 'none',
+                            lineStyle: { color: lineColor, width: 2 },
+                            areaStyle: {
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: lineColor + '30' },
+                                    { offset: 1, color: lineColor + '05' }
+                                ])
+                            },
+                            markLine: {
+                                silent: true,
+                                symbol: 'none',
+                                lineStyle: { width: 1 },
+                                data: [
+                                    {
+                                        yAxis: mean,
+                                        lineStyle: { color: '#4a9eff', type: 'solid', width: 1.5 },
+                                        label: {
+                                            formatter: '均值 ' + (pair.metric_type === 'ratio' ? mean.toFixed(4) : mean.toLocaleString()),
+                                            color: '#4a9eff',
+                                            fontSize: 11
+                                        }
+                                    },
+                                    {
+                                        yAxis: upperBand,
+                                        lineStyle: { color: '#ff9500', type: 'dashed', width: 1 },
+                                        label: { show: false }
+                                    },
+                                    {
+                                        yAxis: lowerBand,
+                                        lineStyle: { color: '#ff9500', type: 'dashed', width: 1 },
+                                        label: { show: false }
+                                    }
+                                ]
+                            },
+                            markArea: {
+                                silent: true,
+                                data: [
+                                    [
+                                        { yAxis: lowerBand, itemStyle: { color: 'rgba(255, 149, 0, 0.05)' } },
+                                        { yAxis: upperBand }
+                                    ]
+                                ]
+                            },
+                            markPoint: {
+                                data: [
+                                    {
+                                        coord: [dates[dates.length - 1], metrics[metrics.length - 1]],
+                                        symbol: 'circle',
+                                        symbolSize: 10,
+                                        itemStyle: { color: lineColor, borderColor: '#fff', borderWidth: 2 },
+                                        label: {
+                                            show: true,
+                                            formatter: pair.current.value.toFixed(pair.metric_type === 'ratio' ? 4 : 0),
+                                            position: 'top',
+                                            color: lineColor,
+                                            fontWeight: 700,
+                                            fontSize: 12
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                };
+
+                chart.setOption(option);
+
+                // Responsive
+                window.addEventListener('resize', () => chart.resize());
+            });
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initCharts);
+    </script>
+</body>
+</html>

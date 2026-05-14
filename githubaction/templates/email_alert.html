@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#0f1923;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f1923;padding:20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background:#1a2332;border-radius:12px;border:1px solid #2a3a4a;overflow:hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding:24px 30px;background:linear-gradient(135deg,#1a2332 0%,#1e2a3a 100%);border-bottom:1px solid #2a3a4a;">
+                            <h1 style="margin:0;font-size:20px;color:#e8eaed;font-weight:700;">
+                                &#127968; 豆类期货套利分析 - 极端信号警报
+                            </h1>
+                            <p style="margin:6px 0 0;font-size:13px;color:#8892a0;">
+                                {{ date }} 检测到 {{ alerts | length }} 个品种对触发极端信号
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Alerts -->
+                    {% for alert in alerts %}
+                    <tr>
+                        <td style="padding:20px 30px;">
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,71,87,0.08);border:1px solid rgba(255,71,87,0.2);border-radius:10px;">
+                                <tr>
+                                    <td style="padding:18px 20px;">
+                                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                                            <h3 style="margin:0;font-size:16px;color:#e8eaed;font-weight:700;">
+                                                {{ alert.name_zh }}
+                                            </h3>
+                                            <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;
+                                                {% if alert.direction == 'extreme_high' %}
+                                                    background:rgba(255,71,87,0.15);color:#ff4757;border:1px solid rgba(255,71,87,0.3);
+                                                {% else %}
+                                                    background:rgba(74,158,255,0.15);color:#4a9eff;border:1px solid rgba(74,158,255,0.3);
+                                                {% endif %}">
+                                                {{ alert.percentile }}% 分位
+                                            </span>
+                                        </div>
+
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td width="50%" style="padding:6px 0;">
+                                                    <span style="color:#8892a0;font-size:12px;">当前{{ alert.metric_label }}</span><br>
+                                                    <span style="color:#e8eaed;font-size:20px;font-weight:700;">
+                                                        {{ alert.current_value }}
+                                                    </span>
+                                                </td>
+                                                <td width="50%" style="padding:6px 0;">
+                                                    <span style="color:#8892a0;font-size:12px;">信号方向</span><br>
+                                                    <span style="color:{% if alert.direction == 'extreme_high' %}#ff4757{% else %}#4a9eff{% endif %};font-size:16px;font-weight:700;">
+                                                        {% if alert.direction == 'extreme_high' %}&#8593; 极高{% else %}&#8595; 极低{% endif %}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </table>
+
+                                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;">
+                                            <tr>
+                                                <td width="25%" style="padding:8px 0 0;">
+                                                    <span style="color:#8892a0;font-size:11px;">均值</span><br>
+                                                    <span style="color:#e8eaed;font-size:13px;font-weight:600;">{{ alert.mean }}</span>
+                                                </td>
+                                                <td width="25%" style="padding:8px 0 0;">
+                                                    <span style="color:#8892a0;font-size:11px;">标准差</span><br>
+                                                    <span style="color:#e8eaed;font-size:13px;font-weight:600;">{{ alert.std }}</span>
+                                                </td>
+                                                <td width="25%" style="padding:8px 0 0;">
+                                                    <span style="color:#8892a0;font-size:11px;">历史最小</span><br>
+                                                    <span style="color:#e8eaed;font-size:13px;font-weight:600;">{{ alert.min }}</span>
+                                                </td>
+                                                <td width="25%" style="padding:8px 0 0;">
+                                                    <span style="color:#8892a0;font-size:11px;">历史最大</span><br>
+                                                    <span style="color:#e8eaed;font-size:13px;font-weight:600;">{{ alert.max }}</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding:20px 30px;border-top:1px solid #2a3a4a;text-align:center;">
+                            <p style="margin:0 0 8px;font-size:12px;color:#8892a0;">
+                                此邮件由豆类期货套利分析系统自动发送
+                            </p>
+                            <p style="margin:0;font-size:12px;color:#8892a0;">
+                                <a href="{{ dashboard_url }}" style="color:#00d4aa;text-decoration:none;">查看完整仪表盘</a>
+                                &nbsp;|&nbsp;
+                                <a href="{{ unsubscribe_url }}" style="color:#8892a0;text-decoration:none;">取消订阅</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
