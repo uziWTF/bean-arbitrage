@@ -1,5 +1,5 @@
 {
-  "scrape_date": "2026-05-14 15:31:17",
+  "scrape_date": "2026-05-14 15:40:35",
   "commodities": [
     {
       "name": "菜油",
@@ -26,6 +26,32 @@
       "change": -33.0,
       "volume": 333700,
       "open_interest": 869400
+    },
+    {
+      "name": "豆油",
+      "url": "https://quote.eastmoney.com/qihuo/Ym.html",
+      "date": "2026-05-14",
+      "close_price": 8479.0,
+      "open_price": 8490.0,
+      "high": 8494.0,
+      "low": 8455.0,
+      "prev_settle": 8549.0,
+      "change": -70.0,
+      "volume": 120300,
+      "open_interest": 706800
+    },
+    {
+      "name": "豆粕",
+      "url": "https://quote.eastmoney.com/qihuo/mm.html",
+      "date": "2026-05-14",
+      "close_price": 3003.0,
+      "open_price": 3005.0,
+      "high": 3008.0,
+      "low": 2991.0,
+      "prev_settle": 3051.0,
+      "change": -48.0,
+      "volume": 717400,
+      "open_interest": 2669000
     },
     {
       "name": "豆一",
