@@ -1,32 +1,6 @@
 {
-  "scrape_date": "2026-05-14 15:49:20",
+  "scrape_date": "2026-05-14 15:58:22",
   "commodities": [
-    {
-      "name": "菜油",
-      "url": "https://quote.eastmoney.com/qihuo/OIM.html",
-      "date": "2026-05-14",
-      "close_price": 9634.0,
-      "open_price": 9661.0,
-      "high": 9676.0,
-      "low": 9620.0,
-      "prev_settle": 9713.0,
-      "change": -79.0,
-      "volume": 69930,
-      "open_interest": 257000
-    },
-    {
-      "name": "菜粕",
-      "url": "https://quote.eastmoney.com/qihuo/RMM.html",
-      "date": "2026-05-14",
-      "close_price": 2347.0,
-      "open_price": 2348.0,
-      "high": 2354.0,
-      "low": 2336.0,
-      "prev_settle": 2380.0,
-      "change": -33.0,
-      "volume": 333700,
-      "open_interest": 869400
-    },
     {
       "name": "豆油",
       "url": "https://quote.eastmoney.com/qihuo/Ym.html",
@@ -78,19 +52,6 @@
       "change": -74.0,
       "volume": 105500,
       "open_interest": 186000
-    },
-    {
-      "name": "棕榈油",
-      "url": "https://quote.eastmoney.com/qihuo/pm.html",
-      "date": "2026-05-14",
-      "close_price": 9415.0,
-      "open_price": 9372.0,
-      "high": 9432.0,
-      "low": 9366.0,
-      "prev_settle": 9480.0,
-      "change": -65.0,
-      "volume": 179899,
-      "open_interest": 493000
     }
   ]
 }
