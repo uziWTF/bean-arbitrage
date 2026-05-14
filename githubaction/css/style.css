@@ -248,7 +248,7 @@ header {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 10px;
-    padding: 14px 12px;
+    padding: 16px 12px;
     text-align: center;
     transition: border-color 0.2s;
 }
@@ -260,36 +260,15 @@ header {
 .price-name {
     font-size: 0.82rem;
     color: var(--text-secondary);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     font-weight: 500;
 }
 
 .price-value {
-    font-size: 1.2rem;
+    font-size: 1.3rem;
     font-weight: 700;
-    color: var(--text-color);
-    margin-bottom: 4px;
-}
-
-.price-change {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.price-change.up {
-    color: #ff4757;
-}
-
-.price-change.down {
-    color: #00d4aa;
-}
-
-.price-detail {
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    margin-top: 4px;
-    opacity: 0.7;
+    color: var(--primary-color);
+    letter-spacing: -0.5px;
 }
 
 /* Detail Sections */

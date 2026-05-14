@@ -45,14 +45,7 @@
                 {% for c in commodities %}
                 <div class="price-card">
                     <div class="price-name">{{ c.name }}</div>
-                    <div class="price-value">{{ c.close_price if c.close_price is not none else '-' }}</div>
-                    <div class="price-change {% if c.change is not none and c.change > 0 %}up{% elif c.change is not none and c.change < 0 %}down{% endif %}">
-                        {% if c.change is not none %}{{ '%+.2f' | format(c.change) }}{% else %}-{% endif %}
-                    </div>
-                    <div class="price-detail">
-                        {% if c.high is not none %}H: {{ c.high }}{% endif %}
-                        {% if c.low is not none %} L: {{ c.low }}{% endif %}
-                    </div>
+                    <div class="price-value">{{ c.close_price|int }}</div>
                 </div>
                 {% endfor %}
             </div>
