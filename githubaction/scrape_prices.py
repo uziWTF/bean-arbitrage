@@ -27,6 +27,8 @@ COMMODITIES = [
     {"name": "棕榈油", "url": "https://quote.eastmoney.com/qihuo/pm.html"},
 ]
 
+MAX_RETRIES = 3
+
 
 def create_driver():
     """创建 Chrome WebDriver"""
@@ -54,10 +56,9 @@ def scrape_commodity(driver, commodity):
     try:
         driver.get(url)
 
-        # 等待页面加载
-        wait = WebDriverWait(driver, 15)
+        wait = WebDriverWait(driver, 20)
         wait.until(EC.presence_of_element_located((By.CLASS_NAME, "brief_info_c")))
-        time.sleep(2)
+        time.sleep(3)
 
         result = {
             "name": name,
@@ -133,6 +134,11 @@ def scrape_commodity(driver, commodity):
         except Exception as e:
             print(f"  [{name}] 提取详细信息失败: {e}")
 
+        # 验证：必须有收盘价才算成功
+        if result["close_price"] is None:
+            print(f"  [{name}] 未获取到收盘价，视为失败")
+            return None
+
         return result
 
     except Exception as e:
@@ -174,14 +180,35 @@ def main():
         commodities_data = []
 
         for commodity in COMMODITIES:
-            print(f"\n正在抓取 {commodity['name']}...")
-            result = scrape_commodity(driver, commodity)
-            if result:
+            name = commodity["name"]
+            result = None
+
+            for attempt in range(1, MAX_RETRIES + 1):
+                print(f"\n[{name}] 第 {attempt}/{MAX_RETRIES} 次尝试...")
+                result = scrape_commodity(driver, commodity)
+                if result and result["close_price"] is not None:
+                    break
+                if attempt < MAX_RETRIES:
+                    print(f"  等待 3 秒后重试...")
+                    time.sleep(3)
+                    # 重新创建 driver 以清除可能的反爬状态
+                    try:
+                        driver.quit()
+                    except:
+                        pass
+                    driver = create_driver()
+
+            if result and result["close_price"] is not None:
                 commodities_data.append(result)
-                print(f"  成功: {result['date']} 最新价={result['close_price']}")
+                print(f"  [{name}] 成功: {result['date']} 最新价={result['close_price']}")
             else:
-                print(f"  失败")
-            time.sleep(1)  # 避免请求过快
+                print(f"  [{name}] {MAX_RETRIES} 次尝试均失败，跳过")
+
+            time.sleep(2)
+
+        # 检查是否抓到了足够的品种
+        if len(commodities_data) < 4:
+            print(f"\n警告: 只抓到 {len(commodities_data)} 个品种，数据可能不完整")
 
         # 保存到JSON
         output = {
@@ -197,7 +224,7 @@ def main():
             json.dump(output, f, ensure_ascii=False, indent=2)
 
         print(f"\n{'=' * 60}")
-        print(f"抓取完成! 共 {len(commodities_data)} 个品种")
+        print(f"抓取完成! 共 {len(commodities_data)} / {len(COMMODITIES)} 个品种")
         print(f"数据已保存到: {output_path}")
         print("=" * 60)
 
