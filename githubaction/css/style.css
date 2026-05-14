@@ -228,8 +228,20 @@ header {
 
 .prices-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(7, 1fr);
     gap: 12px;
+}
+
+@media (max-width: 900px) {
+    .prices-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .prices-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 
 .price-card {

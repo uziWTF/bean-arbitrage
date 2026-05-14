@@ -1,37 +1,126 @@
 """
-从东方财富网抓取最新期货价格
-基于 豆类/05_update_data.py 重写，适配 GitHub Actions
+从多个数据源获取最新期货价格
+三层回退机制：akshare → Selenium网页爬取 → 东方财富API
 """
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-import re
 import time
 import json
-import os
+import re
 from pathlib import Path
 from datetime import datetime
-
+from typing import Optional
 
 # 品种配置
 COMMODITIES = [
-    {"name": "菜油", "url": "https://quote.eastmoney.com/qihuo/OIM.html"},
-    {"name": "菜粕", "url": "https://quote.eastmoney.com/qihuo/RMM.html"},
-    {"name": "豆油", "url": "https://quote.eastmoney.com/qihuo/Ym.html"},
-    {"name": "豆粕", "url": "https://quote.eastmoney.com/qihuo/mm.html"},
-    {"name": "豆一", "url": "https://quote.eastmoney.com/qihuo/am.html"},
-    {"name": "豆二", "url": "https://quote.eastmoney.com/qihuo/bm.html"},
-    {"name": "棕榈油", "url": "https://quote.eastmoney.com/qihuo/pm.html"},
+    {"name": "菜油", "code_akshare": "OI0", "code_eastmoney": "OIM", "url": "https://quote.eastmoney.com/qihuo/OIM.html"},
+    {"name": "菜粕", "code_akshare": "RM0", "code_eastmoney": "RMM", "url": "https://quote.eastmoney.com/qihuo/RMM.html"},
+    {"name": "豆油", "code_akshare": "Y0", "code_eastmoney": "Ym", "url": "https://quote.eastmoney.com/qihuo/Ym.html"},
+    {"name": "豆粕", "code_akshare": "M0", "code_eastmoney": "mm", "url": "https://quote.eastmoney.com/qihuo/mm.html"},
+    {"name": "豆一", "code_akshare": "A0", "code_eastmoney": "am", "url": "https://quote.eastmoney.com/qihuo/am.html"},
+    {"name": "豆二", "code_akshare": "B0", "code_eastmoney": "bm", "url": "https://quote.eastmoney.com/qihuo/bm.html"},
+    {"name": "棕榈油", "code_akshare": "P0", "code_eastmoney": "pm", "url": "https://quote.eastmoney.com/qihuo/pm.html"},
 ]
 
-MAX_RETRIES = 3
+
+# ============================================================
+# 第一层: akshare
+# ============================================================
+def scrape_akshare() -> Optional[list]:
+    """通过 akshare 的 futures_main_sina 获取主连数据"""
+    try:
+        import akshare as ak
+    except ImportError:
+        print("[akshare] 未安装，跳过")
+        return None
+
+    results = []
+    for c in COMMODITIES:
+        name = c["name"]
+        symbol = c["code_akshare"]
+        try:
+            df = ak.futures_main_sina(symbol=symbol)
+            if df is None or df.empty:
+                print(f"  [akshare] {name}: 无数据")
+                continue
+
+            last = df.iloc[-1]
+            # 列: 日期, 开盘价, 最高价, 最低价, 收盘价, 成交量, 持仓量, 动态结算价
+            prev = df.iloc[-2] if len(df) >= 2 else None
+
+            close_price = float(last.iloc[4])
+            open_price = float(last.iloc[1])
+            high = float(last.iloc[2])
+            low = float(last.iloc[3])
+            volume = int(last.iloc[5])
+            open_interest = int(last.iloc[6])
+            settle = float(last.iloc[7]) if len(last) > 7 else close_price
+
+            # 昨结算: 前一行的结算价
+            prev_settle = float(prev.iloc[7]) if prev is not None and len(prev) > 7 else close_price
+
+            # 涨跌 = 收盘 - 昨结算
+            change = round(close_price - prev_settle, 2)
+
+            # 日期格式: 2026-05-14 → 2026-05-14
+            date_str = str(last.iloc[0])
+
+            results.append({
+                "name": name,
+                "url": c["url"],
+                "date": date_str,
+                "close_price": close_price,
+                "open_price": open_price,
+                "high": high,
+                "low": low,
+                "prev_settle": prev_settle,
+                "change": change,
+                "volume": volume,
+                "open_interest": open_interest,
+            })
+            print(f"  [akshare] {name}: {date_str} 收盘={close_price}")
+
+        except Exception as e:
+            print(f"  [akshare] {name}: 失败 - {e}")
+
+    if len(results) >= 4:
+        return results
+    print(f"[akshare] 仅获取 {len(results)} 个品种，不足4个，放弃")
+    return None
 
 
-def create_driver():
-    """创建 Chrome WebDriver"""
+# ============================================================
+# 第二层: Selenium 网页爬取
+# ============================================================
+def _parse_number(text):
+    text = text.strip().replace(",", "")
+    try:
+        return float(text)
+    except Exception:
+        return None
+
+
+def _parse_volume(text):
+    text = text.strip()
+    try:
+        if "万" in text:
+            return int(float(text.replace("万", "")) * 10000)
+        return int(float(text.replace(",", "")))
+    except Exception:
+        return None
+
+
+def scrape_selenium() -> Optional[list]:
+    """通过 Selenium 爬取东方财富网页"""
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.chrome.options import Options
+    except ImportError:
+        print("[Selenium] 未安装，跳过")
+        return None
+
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
@@ -43,197 +132,205 @@ def create_driver():
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
-    driver = webdriver.Chrome(options=chrome_options)
-    driver.set_page_load_timeout(30)
-    return driver
-
-
-def scrape_commodity(driver, commodity):
-    """抓取单个品种的最新价格"""
-    name = commodity["name"]
-    url = commodity["url"]
-
-    try:
-        driver.get(url)
-
-        wait = WebDriverWait(driver, 20)
-        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "brief_info_c")))
-        time.sleep(3)
-
-        result = {
-            "name": name,
-            "url": url,
-            "date": "",
-            "close_price": None,
-            "open_price": None,
-            "high": None,
-            "low": None,
-            "prev_settle": None,
-            "change": None,
-            "volume": None,
-            "open_interest": None,
-        }
-
-        # 提取交易日期
-        try:
-            title_div = driver.find_element(By.CLASS_NAME, "quote_title_l")
-            time_span = title_div.find_element(By.CLASS_NAME, "quote_title_time")
-            time_text = time_span.text
-            date_match = re.search(r"(\d{4}-\d{2}-\d{2})", time_text)
-            if date_match:
-                result["date"] = date_match.group(1)
-        except Exception as e:
-            print(f"  [{name}] 提取交易日期失败: {e}")
-
-        # 提取最新价（收盘价）
-        try:
-            close_div = driver.find_element(By.CLASS_NAME, "zxj")
-            price_span = close_div.find_element(By.TAG_NAME, "span")
-            price_text = price_span.text.strip().replace(",", "")
-            result["close_price"] = float(price_text)
-        except Exception as e:
-            print(f"  [{name}] 提取最新价失败: {e}")
-
-        # 提取涨跌
-        try:
-            zd_div = driver.find_element(By.CLASS_NAME, "zd")
-            spans = zd_div.find_elements(By.TAG_NAME, "span")
-            if spans:
-                change_text = spans[0].text.strip().replace(",", "")
-                result["change"] = float(change_text)
-        except Exception as e:
-            print(f"  [{name}] 提取涨跌失败: {e}")
-
-        # 提取详细信息
-        try:
-            brief_info = driver.find_element(By.CLASS_NAME, "brief_info_c")
-            table = brief_info.find_element(By.TAG_NAME, "table")
-            tds = table.find_elements(By.TAG_NAME, "td")
-
-            for td in tds:
-                text = td.text.strip()
-                try:
-                    value_span = td.find_element(By.TAG_NAME, "span")
-                    value_text = value_span.text.strip()
-                except:
-                    continue
-
-                if "昨结算:" in text:
-                    result["prev_settle"] = _parse_number(value_text)
-                elif "今开:" in text:
-                    result["open_price"] = _parse_number(value_text)
-                elif "最高:" in text:
-                    result["high"] = _parse_number(value_text)
-                elif "最低:" in text:
-                    result["low"] = _parse_number(value_text)
-                elif "成交量:" in text:
-                    result["volume"] = _parse_volume(value_text)
-                elif "持仓量:" in text:
-                    result["open_interest"] = _parse_volume(value_text)
-
-        except Exception as e:
-            print(f"  [{name}] 提取详细信息失败: {e}")
-
-        # 验证：必须有收盘价才算成功
-        if result["close_price"] is None:
-            print(f"  [{name}] 未获取到收盘价，视为失败")
-            return None
-
-        return result
-
-    except Exception as e:
-        print(f"  [{name}] 抓取失败: {e}")
-        return None
-
-
-def _parse_number(text):
-    """解析数字文本"""
-    text = text.strip().replace(",", "")
-    try:
-        return float(text)
-    except:
-        return None
-
-
-def _parse_volume(text):
-    """解析成交量/持仓量（处理万单位）"""
-    text = text.strip()
-    try:
-        if "万" in text:
-            num = float(text.replace("万", ""))
-            return int(num * 10000)
-        else:
-            return int(float(text.replace(",", "")))
-    except:
-        return None
-
-
-def main():
-    print("=" * 60)
-    print("开始抓取东方财富网期货最新价格")
-    print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-
     driver = None
+    results = []
     try:
-        driver = create_driver()
-        commodities_data = []
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.set_page_load_timeout(30)
 
-        for commodity in COMMODITIES:
-            name = commodity["name"]
-            result = None
+        for c in COMMODITIES:
+            name = c["name"]
+            url = c["url"]
+            try:
+                driver.get(url)
+                wait = WebDriverWait(driver, 20)
+                wait.until(EC.presence_of_element_located((By.CLASS_NAME, "brief_info_c")))
+                time.sleep(3)
 
-            for attempt in range(1, MAX_RETRIES + 1):
-                print(f"\n[{name}] 第 {attempt}/{MAX_RETRIES} 次尝试...")
-                result = scrape_commodity(driver, commodity)
-                if result and result["close_price"] is not None:
-                    break
-                if attempt < MAX_RETRIES:
-                    print(f"  等待 3 秒后重试...")
-                    time.sleep(3)
-                    # 重新创建 driver 以清除可能的反爬状态
-                    try:
-                        driver.quit()
-                    except:
-                        pass
-                    driver = create_driver()
+                result = {
+                    "name": name, "url": url, "date": "",
+                    "close_price": None, "open_price": None,
+                    "high": None, "low": None, "prev_settle": None,
+                    "change": None, "volume": None, "open_interest": None,
+                }
 
-            if result and result["close_price"] is not None:
-                commodities_data.append(result)
-                print(f"  [{name}] 成功: {result['date']} 最新价={result['close_price']}")
-            else:
-                print(f"  [{name}] {MAX_RETRIES} 次尝试均失败，跳过")
+                # 日期
+                try:
+                    time_text = driver.find_element(By.CLASS_NAME, "quote_title_l").find_element(By.CLASS_NAME, "quote_title_time").text
+                    m = re.search(r"(\d{4}-\d{2}-\d{2})", time_text)
+                    if m:
+                        result["date"] = m.group(1)
+                except Exception:
+                    pass
+
+                # 最新价
+                try:
+                    price_text = driver.find_element(By.CLASS_NAME, "zxj").find_element(By.TAG_NAME, "span").text.strip().replace(",", "")
+                    result["close_price"] = float(price_text)
+                except Exception:
+                    pass
+
+                # 涨跌
+                try:
+                    spans = driver.find_element(By.CLASS_NAME, "zd").find_elements(By.TAG_NAME, "span")
+                    if spans:
+                        result["change"] = float(spans[0].text.strip().replace(",", ""))
+                except Exception:
+                    pass
+
+                # 详细信息
+                try:
+                    tds = driver.find_element(By.CLASS_NAME, "brief_info_c").find_element(By.TAG_NAME, "table").find_elements(By.TAG_NAME, "td")
+                    for td in tds:
+                        text = td.text.strip()
+                        try:
+                            val = td.find_element(By.TAG_NAME, "span").text.strip()
+                        except Exception:
+                            continue
+                        if "昨结算:" in text:
+                            result["prev_settle"] = _parse_number(val)
+                        elif "今开:" in text:
+                            result["open_price"] = _parse_number(val)
+                        elif "最高:" in text:
+                            result["high"] = _parse_number(val)
+                        elif "最低:" in text:
+                            result["low"] = _parse_number(val)
+                        elif "成交量:" in text:
+                            result["volume"] = _parse_volume(val)
+                        elif "持仓量:" in text:
+                            result["open_interest"] = _parse_volume(val)
+                except Exception:
+                    pass
+
+                if result["close_price"] is not None:
+                    results.append(result)
+                    print(f"  [Selenium] {name}: {result['date']} 收盘={result['close_price']}")
+                else:
+                    print(f"  [Selenium] {name}: 未获取到收盘价")
+
+            except Exception as e:
+                print(f"  [Selenium] {name}: 失败 - {e}")
 
             time.sleep(2)
 
-        # 检查是否抓到了足够的品种
-        if len(commodities_data) < 4:
-            print(f"\n警告: 只抓到 {len(commodities_data)} 个品种，数据可能不完整")
-
-        # 保存到JSON
-        output = {
-            "scrape_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "commodities": commodities_data,
-        }
-
-        output_dir = Path(__file__).parent / "data"
-        output_dir.mkdir(exist_ok=True)
-        output_path = output_dir / "commodities.json"
-
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(output, f, ensure_ascii=False, indent=2)
-
-        print(f"\n{'=' * 60}")
-        print(f"抓取完成! 共 {len(commodities_data)} / {len(COMMODITIES)} 个品种")
-        print(f"数据已保存到: {output_path}")
-        print("=" * 60)
+        return results if len(results) >= 4 else None
 
     except Exception as e:
-        print(f"\n错误: {e}")
-        raise
+        print(f"[Selenium] 初始化失败: {e}")
+        return None
     finally:
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except Exception:
+                pass
+
+
+# ============================================================
+# 第三层: 东方财富 API
+# ============================================================
+def scrape_eastmoney_api() -> Optional[list]:
+    """通过东方财富 push2 API 获取行情"""
+    import requests
+
+    results = []
+    for c in COMMODITIES:
+        name = c["name"]
+        code = c["code_eastmoney"]
+        try:
+            url = "https://push2.eastmoney.com/api/qt/stock/get"
+            params = {
+                "secid": f"115.{code}",
+                "fields": "f43,f44,f45,f46,f47,f48,f57,f58,f60,f170",
+                "ut": "fa5fd1943c7b386f172d6893dbbd4dd1",
+            }
+            resp = requests.get(url, params=params, timeout=10)
+            data = resp.json().get("data", {})
+
+            if not data or not data.get("f43"):
+                print(f"  [API] {name}: 无数据")
+                continue
+
+            # 东财API价格单位为分(除以100)
+            close_price = data["f43"] / 100
+            high = data.get("f44", 0) / 100 if data.get("f44") else None
+            low = data.get("f45", 0) / 100 if data.get("f45") else None
+            open_price = data.get("f46", 0) / 100 if data.get("f46") else None
+            prev_settle = data.get("f60", 0) / 100 if data.get("f60") else None
+            volume = data.get("f47")
+            open_interest = data.get("f48")
+
+            change = round(close_price - prev_settle, 2) if prev_settle else None
+
+            results.append({
+                "name": name,
+                "url": c["url"],
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "close_price": close_price,
+                "open_price": open_price,
+                "high": high,
+                "low": low,
+                "prev_settle": prev_settle,
+                "change": change,
+                "volume": volume,
+                "open_interest": open_interest,
+            })
+            print(f"  [API] {name}: 收盘={close_price}")
+
+        except Exception as e:
+            print(f"  [API] {name}: 失败 - {e}")
+
+    return results if len(results) >= 4 else None
+
+
+# ============================================================
+# 主函数: 三层回退
+# ============================================================
+def main():
+    print("=" * 60)
+    print("开始获取期货最新价格")
+    print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+
+    # 第一层: akshare
+    print("\n--- 第一层: akshare ---")
+    data = scrape_akshare()
+
+    # 第二层: Selenium
+    if data is None:
+        print("\n--- 第二层: Selenium 网页爬取 ---")
+        data = scrape_selenium()
+
+    # 第三层: 东方财富 API
+    if data is None:
+        print("\n--- 第三层: 东方财富 API ---")
+        data = scrape_eastmoney_api()
+
+    if data is None:
+        print("\n三层数据源均失败，无法获取数据")
+        return
+
+    # 按 COMMODITIES 顺序排序
+    order = {c["name"]: i for i, c in enumerate(COMMODITIES)}
+    data.sort(key=lambda x: order.get(x["name"], 99))
+
+    # 保存
+    output = {
+        "scrape_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "commodities": data,
+    }
+
+    output_dir = Path(__file__).parent / "data"
+    output_dir.mkdir(exist_ok=True)
+    output_path = output_dir / "commodities.json"
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, ensure_ascii=False, indent=2)
+
+    print(f"\n{'=' * 60}")
+    print(f"获取完成! 共 {len(data)} / {len(COMMODITIES)} 个品种")
+    print(f"数据已保存到: {output_path}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
