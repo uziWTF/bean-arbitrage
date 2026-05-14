@@ -185,7 +185,7 @@ def main():
 
         # 保存到JSON
         output = {
-            "scrape_date": datetime.now().strftime("%Y-%m-%d"),
+            "scrape_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "commodities": commodities_data,
         }
 

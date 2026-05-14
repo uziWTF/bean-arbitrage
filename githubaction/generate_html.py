@@ -45,18 +45,20 @@ def main():
     # 准备模板数据
     pairs = pairs_data["pairs"]
     last_updated = pairs_data.get("last_updated", "")
+    commodities = pairs_data.get("commodities", [])
 
     # 将数据转换为JSON字符串供JavaScript使用
     pairs_json = json.dumps(pairs, ensure_ascii=False)
 
-    # GitHub仓库URL（需要在部署时配置）
-    repo_url = "https://github.com/YOUR_USERNAME/YOUR_REPO"
+    # GitHub仓库URL
+    repo_url = "https://github.com/uziWTF/bean-arbitrage"
 
     html = template.render(
         pairs=pairs,
         last_updated=last_updated,
         pairs_json=pairs_json,
         repo_url=repo_url,
+        commodities=commodities,
     )
 
     # 写入文件

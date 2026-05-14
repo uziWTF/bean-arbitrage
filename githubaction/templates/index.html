@@ -37,6 +37,28 @@
             {% endfor %}
         </div>
 
+        <!-- Commodity Prices -->
+        {% if commodities %}
+        <div class="prices-section">
+            <h3 class="section-title">品种最新价格（主连）</h3>
+            <div class="prices-grid">
+                {% for c in commodities %}
+                <div class="price-card">
+                    <div class="price-name">{{ c.name }}</div>
+                    <div class="price-value">{{ c.close_price if c.close_price is not none else '-' }}</div>
+                    <div class="price-change {% if c.change is not none and c.change > 0 %}up{% elif c.change is not none and c.change < 0 %}down{% endif %}">
+                        {% if c.change is not none %}{{ '%+.2f' | format(c.change) }}{% else %}-{% endif %}
+                    </div>
+                    <div class="price-detail">
+                        {% if c.high is not none %}H: {{ c.high }}{% endif %}
+                        {% if c.low is not none %} L: {{ c.low }}{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Detail Sections -->
         {% for pair in pairs %}
         <div class="detail-section" id="detail-{{ pair.id }}">

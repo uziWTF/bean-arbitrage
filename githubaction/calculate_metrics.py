@@ -262,6 +262,9 @@ def main():
                 "max": pair["statistics"]["max"],
             })
 
+    # 存储最新商品价格供页面展示
+    pairs_data["commodities"] = commodities_data["commodities"]
+
     # 更新时间戳
     pairs_data["last_updated"] = scrape_date
 
