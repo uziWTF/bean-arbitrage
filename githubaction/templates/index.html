@@ -309,14 +309,11 @@
                 return;
             }
 
-            if (!confirm('确认订阅 ' + email + ' ？\n点击确定后请在跳转页面点击 Submit issue。')) return;
-
             const repoUrl = '{{ repo_url }}';
             const title = encodeURIComponent('订阅邮件通知: ' + email);
             const body = encodeURIComponent('### 邮箱地址\n\n' + email);
             window.open(repoUrl + '/issues/new?title=' + title + '&body=' + body, '_blank');
-
-            msgDiv.innerHTML = '<span style="color:#00d4aa">✓ 已提交，请在新页面点击 Submit issue 完成订阅</span>';
+            msgDiv.innerHTML = '<span style="color:#00d4aa">✓ 请在新弹出的页面点击 Submit issue 完成订阅</span>';
             emailInput.value = '';
         }
 
