@@ -213,6 +213,85 @@ header {
     color: var(--text-secondary);
 }
 
+/* Commodity Prices Section */
+.prices-section {
+    margin-bottom: 30px;
+}
+
+.section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    padding-left: 4px;
+}
+
+.prices-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 1000px) {
+    .prices-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .prices-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.price-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+    transition: border-color 0.2s;
+}
+
+.price-card:hover {
+    border-color: var(--primary-color);
+}
+
+.price-name {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.price-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.price-change {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.price-change.up {
+    color: #ff4757;
+}
+
+.price-change.down {
+    color: #00d4aa;
+}
+
+.price-detail {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
 /* Detail Sections */
 .detail-section {
     background: var(--card-bg);
@@ -340,11 +419,44 @@ header {
     margin-bottom: 16px;
 }
 
+.subscribe-form {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.subscribe-input {
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.95rem;
+    width: 280px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.subscribe-input:focus {
+    border-color: var(--primary-color);
+}
+
+.subscribe-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.subscribe-msg {
+    font-size: 0.85rem;
+    min-height: 20px;
+}
+
 .subscribe-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 28px;
+    padding: 12px 24px;
     background: var(--primary-color);
     color: #fff;
     border: none;
@@ -354,6 +466,7 @@ header {
     cursor: pointer;
     text-decoration: none;
     transition: all 0.2s;
+    white-space: nowrap;
 }
 
 .subscribe-btn:hover {
