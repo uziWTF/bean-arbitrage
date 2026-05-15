@@ -1,19 +1,19 @@
 name: 取消订阅
-description: 取消邮件通知订阅
+description: 取消飞书通知订阅
 title: "取消订阅"
 labels: ["subscription"]
 body:
   - type: markdown
     attributes:
       value: |
-        ## 取消邮件通知订阅
+        ## 取消飞书通知订阅
 
-        请在下方输入您当初订阅时使用的邮箱地址：
+        请在下方粘贴您当初订阅时使用的飞书机器人 Webhook URL：
   - type: input
-    id: email
+    id: webhook_url
     attributes:
-      label: 邮箱地址
-      description: 输入您当初订阅时使用的邮箱地址
-      placeholder: "your@email.com"
+      label: 飞书机器人 Webhook URL
+      description: 输入您当初订阅时使用的 Webhook URL
+      placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxx"
     validations:
       required: true

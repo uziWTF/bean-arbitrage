@@ -1,4 +1,4 @@
-name: Manage Email Subscriptions
+name: Manage Feishu Subscriptions
 
 on:
   issues:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   process-subscription:
-    if: contains(github.event.issue.title, '订阅邮件通知:') || contains(github.event.issue.title, '取消订阅:')
+    if: contains(github.event.issue.title, '订阅飞书通知:') || contains(github.event.issue.title, '取消订阅:')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,14 +34,14 @@ jobs:
               console.log('订阅者文件不存在，将创建新文件');
             }
 
-            // 从标题中提取邮箱: "订阅邮件通知: xxx@xxx.com" 或 "取消订阅: xxx@xxx.com"
-            const emailMatch = title.match(/[:：]\s*(.+)/);
-            if (!emailMatch) {
+            // 从标题中提取 webhook URL: "订阅飞书通知: https://open.feishu.cn/..."
+            const webhookMatch = title.match(/[:：]\s*(.+)/);
+            if (!webhookMatch) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issue.number,
-                body: '❌ 未找到有效的邮箱地址。'
+                body: '❌ 未找到有效的飞书机器人 Webhook URL。'
               });
               await github.rest.issues.update({
                 owner: context.repo.owner,
@@ -52,10 +52,27 @@ jobs:
               return;
             }
 
-            const email = emailMatch[1].trim();
+            const webhookUrl = webhookMatch[1].trim();
+
+            // 简单校验 URL 格式
+            if (!webhookUrl.startsWith('https://open.feishu.cn/open-apis/bot/v2/hook/')) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: '❌ Webhook URL 格式不正确。应以 `https://open.feishu.cn/open-apis/bot/v2/hook/` 开头。'
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+              return;
+            }
 
             if (title.includes('取消订阅')) {
-              const idx = subscribers.subscribers.findIndex(s => s.email === email);
+              const idx = subscribers.subscribers.findIndex(s => s.webhook_url === webhookUrl);
               if (idx >= 0) {
                 subscribers.subscribers[idx].active = false;
                 fs.writeFileSync(subscribersPath, JSON.stringify(subscribers, null, 2), 'utf8');
@@ -63,29 +80,30 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issue.number,
-                  body: `✅ 已成功取消订阅：${email}`
+                  body: '✅ 已成功取消订阅。'
                 });
               } else {
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issue.number,
-                  body: `❌ 未找到邮箱 ${email} 的订阅记录。`
+                  body: '❌ 未找到该 Webhook URL 的订阅记录。'
                 });
               }
             } else {
-              const existing = subscribers.subscribers.find(s => s.email === email);
+              const existing = subscribers.subscribers.find(s => s.webhook_url === webhookUrl);
               if (existing) {
                 existing.active = true;
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issue.number,
-                  body: `✅ 已重新激活订阅：${email}`
+                  body: '✅ 已重新激活订阅。'
                 });
               } else {
                 subscribers.subscribers.push({
-                  email: email,
+                  name: '',
+                  webhook_url: webhookUrl,
                   added_date: new Date().toISOString().split('T')[0],
                   active: true
                 });
@@ -93,7 +111,7 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: issue.number,
-                  body: `✅ 订阅成功！邮箱：${email}\n\n当检测到极端信号时，您将收到邮件通知。`
+                  body: '✅ 订阅成功！\n\n当检测到极端信号时，您将收到飞书机器人通知。'
                 });
               }
               fs.writeFileSync(subscribersPath, JSON.stringify(subscribers, null, 2), 'utf8');
