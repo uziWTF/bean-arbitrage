@@ -1,8 +1,9 @@
 {
   "subscribers": [
     {
-      "email": "1374133179@qq.com",
-      "added_date": "2026-05-14",
+      "name": "",
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/3f1ccc20-29b8-4d45-a93b-07c94264d678",
+      "added_date": "2026-05-15",
       "active": true
     }
   ]
