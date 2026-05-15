@@ -59,15 +59,10 @@ jobs:
             git push
           fi
 
-      - name: Send email alerts
+      - name: Send Feishu alerts
         if: hashFiles('githubaction/data/alerts.json') != ''
         env:
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          ALERT_SENDER_EMAIL: ${{ secrets.ALERT_SENDER_EMAIL }}
-          ALERT_SENDER_NAME: ${{ secrets.ALERT_SENDER_NAME }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
           DASHBOARD_URL: ${{ github.server_url }}/${{ github.repository }}
         run: python githubaction/send_alerts.py
 
