@@ -1,6 +1,19 @@
 {
-  "scrape_date": "2026-05-15 10:04:32",
+  "scrape_date": "2026-05-15 18:44:29",
   "commodities": [
+    {
+      "name": "菜油",
+      "url": "https://quote.eastmoney.com/qihuo/OIM.html",
+      "date": "2026-05-15",
+      "close_price": 9537.0,
+      "open_price": 9661.0,
+      "high": 9676.0,
+      "low": 9530.0,
+      "prev_settle": 9713.0,
+      "change": -176.0,
+      "volume": 225700,
+      "open_interest": 243299
+    },
     {
       "name": "菜粕",
       "url": "https://quote.eastmoney.com/qihuo/RMM.html",
