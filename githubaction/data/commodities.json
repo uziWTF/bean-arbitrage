@@ -1,57 +1,83 @@
 {
-  "scrape_date": "2026-05-14 15:58:22",
+  "scrape_date": "2026-05-15 10:04:32",
   "commodities": [
+    {
+      "name": "菜粕",
+      "url": "https://quote.eastmoney.com/qihuo/RMM.html",
+      "date": "2026-05-15",
+      "close_price": 2324.0,
+      "open_price": 2348.0,
+      "high": 2356.0,
+      "low": 2323.0,
+      "prev_settle": 2380.0,
+      "change": -56.0,
+      "volume": 684800,
+      "open_interest": 877500
+    },
     {
       "name": "豆油",
       "url": "https://quote.eastmoney.com/qihuo/Ym.html",
-      "date": "2026-05-14",
-      "close_price": 8479.0,
+      "date": "2026-05-15",
+      "close_price": 8435.0,
       "open_price": 8490.0,
-      "high": 8494.0,
-      "low": 8455.0,
+      "high": 8503.0,
+      "low": 8432.0,
       "prev_settle": 8549.0,
-      "change": -70.0,
-      "volume": 120300,
-      "open_interest": 706800
+      "change": -114.0,
+      "volume": 324700,
+      "open_interest": 697800
     },
     {
       "name": "豆粕",
       "url": "https://quote.eastmoney.com/qihuo/mm.html",
-      "date": "2026-05-14",
-      "close_price": 3003.0,
+      "date": "2026-05-15",
+      "close_price": 2979.0,
       "open_price": 3005.0,
-      "high": 3008.0,
-      "low": 2991.0,
+      "high": 3016.0,
+      "low": 2974.0,
       "prev_settle": 3051.0,
-      "change": -48.0,
-      "volume": 717400,
-      "open_interest": 2669000
+      "change": -72.0,
+      "volume": 1481000,
+      "open_interest": 2591000
     },
     {
       "name": "豆一",
       "url": "https://quote.eastmoney.com/qihuo/am.html",
-      "date": "2026-05-14",
-      "close_price": 4742.0,
+      "date": "2026-05-15",
+      "close_price": 4716.0,
       "open_price": 4740.0,
-      "high": 4754.0,
-      "low": 4721.0,
+      "high": 4767.0,
+      "low": 4713.0,
       "prev_settle": 4785.0,
-      "change": -43.0,
-      "volume": 83160,
-      "open_interest": 298900
+      "change": -69.0,
+      "volume": 213400,
+      "open_interest": 296600
     },
     {
       "name": "豆二",
       "url": "https://quote.eastmoney.com/qihuo/bm.html",
-      "date": "2026-05-14",
-      "close_price": 3579.0,
+      "date": "2026-05-15",
+      "close_price": 3540.0,
       "open_price": 3598.0,
       "high": 3600.0,
-      "low": 3570.0,
+      "low": 3536.0,
       "prev_settle": 3653.0,
-      "change": -74.0,
-      "volume": 105500,
-      "open_interest": 186000
+      "change": -113.0,
+      "volume": 256200,
+      "open_interest": 184600
+    },
+    {
+      "name": "棕榈油",
+      "url": "https://quote.eastmoney.com/qihuo/pm.html",
+      "date": "2026-05-15",
+      "close_price": 9420.0,
+      "open_price": 9372.0,
+      "high": 9476.0,
+      "low": 9366.0,
+      "prev_settle": 9480.0,
+      "change": -60.0,
+      "volume": 489400,
+      "open_interest": 485600
     }
   ]
 }
