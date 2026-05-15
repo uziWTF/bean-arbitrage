@@ -1,5 +1,5 @@
 {
-  "scrape_date": "2026-05-15 18:55:48",
+  "scrape_date": "2026-05-15 19:04:13",
   "commodities": [
     {
       "name": "菜油",
@@ -13,6 +13,19 @@
       "change": -176.0,
       "volume": 225700,
       "open_interest": 243299
+    },
+    {
+      "name": "菜粕",
+      "url": "https://quote.eastmoney.com/qihuo/RMM.html",
+      "date": "2026-05-15",
+      "close_price": 2324.0,
+      "open_price": 2348.0,
+      "high": 2356.0,
+      "low": 2323.0,
+      "prev_settle": 2380.0,
+      "change": -56.0,
+      "volume": 684800,
+      "open_interest": 877500
     },
     {
       "name": "豆油",
