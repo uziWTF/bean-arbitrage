@@ -1,14 +1,15 @@
 """
-检查极端信号并发送邮件警报
+检查极端信号并通过飞书机器人发送警报
 """
 
 import json
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import hashlib
+import hmac
+import base64
+import time
+import requests
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 
 
 def load_json(path):
@@ -19,39 +20,109 @@ def load_json(path):
         return json.load(f)
 
 
-def send_email(to_email, subject, html_content, smtp_config):
-    """发送HTML邮件"""
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{smtp_config['sender_name']} <{smtp_config['sender_email']}>"
-    msg["To"] = to_email
+def gen_sign(timestamp, secret):
+    """生成飞书签名（可选安全设置）"""
+    string_to_sign = f"{timestamp}\n{secret}"
+    hmac_code = hmac.new(
+        secret.encode("utf-8"), string_to_sign.encode("utf-8"), digestmod=hashlib.sha256
+    ).digest()
+    return base64.b64encode(hmac_code).decode("utf-8")
 
-    msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+def build_feishu_card(alerts, date, dashboard_url):
+    """构建飞书消息卡片"""
+    extreme_high = sum(1 for a in alerts if a["direction"] == "extreme_high")
+    extreme_low = sum(1 for a in alerts if a["direction"] == "extreme_low")
+
+    elements = []
+
+    # 概览
+    summary_parts = []
+    if extreme_high > 0:
+        summary_parts.append(f"{extreme_high}个极高信号")
+    if extreme_low > 0:
+        summary_parts.append(f"{extreme_low}个极低信号")
+    summary = "、".join(summary_parts)
+
+    elements.append({
+        "tag": "markdown",
+        "content": f"**日期**: {date}  |  **触发信号**: {len(alerts)} 个 ({summary})"
+    })
+    elements.append({"tag": "hr"})
+
+    # 每个信号
+    for alert in alerts:
+        is_high = alert["direction"] == "extreme_high"
+        direction_text = "↑ 极高" if is_high else "↓ 极低"
+
+        elements.append({
+            "tag": "markdown",
+            "content": (
+                f"**{alert['name_zh']}**\n"
+                f"当前{alert['metric_label']}: **{alert['current_value']}**  |  "
+                f"分位数: **{alert['percentile']}%**  |  "
+                f"信号: **{direction_text}**"
+            )
+        })
+        elements.append({
+            "tag": "markdown",
+            "content": (
+                f"均值: {alert['mean']}  |  标准差: {alert['std']}  |  "
+                f"历史区间: [{alert['min']}, {alert['max']}]"
+            )
+        })
+        elements.append({"tag": "hr"})
+
+    # 底部按钮
+    elements.append({
+        "tag": "action",
+        "actions": [{
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "查看完整仪表盘"},
+            "url": dashboard_url,
+            "type": "primary",
+        }]
+    })
+
+    return {
+        "header": {
+            "title": {"tag": "plain_text", "content": "豆类期货套利 - 极端信号警报"},
+            "template": "red" if extreme_high > 0 else "blue",
+        },
+        "elements": elements,
+    }
+
+
+def send_to_feishu(webhook_url, card, secret=None):
+    """通过飞书 webhook 发送消息卡片"""
+    payload = {"msg_type": "interactive", "card": card}
+
+    if secret:
+        timestamp = str(int(time.time()))
+        payload["timestamp"] = timestamp
+        payload["sign"] = gen_sign(timestamp, secret)
 
     try:
-        with smtplib.SMTP(smtp_config["server"], int(smtp_config["port"])) as server:
-            server.starttls()
-            server.login(smtp_config["username"], smtp_config["password"])
-            server.sendmail(smtp_config["sender_email"], to_email, msg.as_string())
-        print(f"  邮件已发送到: {to_email}")
-        return True
+        resp = requests.post(webhook_url, json=payload, timeout=10)
+        result = resp.json()
+        if result.get("code") == 0 or result.get("StatusCode") == 0:
+            return True
+        print(f"  飞书返回错误: {result}")
+        return False
     except Exception as e:
-        print(f"  发送失败 ({to_email}): {e}")
+        print(f"  发送失败: {e}")
         return False
 
 
 def main():
     script_dir = Path(__file__).parent
     data_dir = script_dir / "data"
-    template_dir = script_dir / "templates"
 
-    # 加载警报数据
     alerts_path = data_dir / "alerts.json"
     alerts_data = load_json(alerts_path)
 
     if not alerts_data or not alerts_data.get("alerts"):
         print("没有需要发送的警报")
-        # 设置 GitHub Actions 输出
         if os.environ.get("GITHUB_OUTPUT"):
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 f.write("has_alerts=false\n")
@@ -66,12 +137,11 @@ def main():
         print(f"  {alert['name_zh']}: {alert['metric_label']}={alert['current_value']}, "
               f"百分位={alert['percentile']}% ({direction})")
 
-    # 加载订阅者
     subscribers_path = data_dir / "subscribers.json"
     subscribers_data = load_json(subscribers_path)
 
     if not subscribers_data or not subscribers_data.get("subscribers"):
-        print("\n没有订阅者，跳过邮件发送")
+        print("\n没有订阅者，跳过飞书发送")
         return
 
     active_subscribers = [
@@ -80,59 +150,36 @@ def main():
     ]
 
     if not active_subscribers:
-        print("\n没有活跃订阅者，跳过邮件发送")
+        print("\n没有活跃订阅者，跳过飞书发送")
         return
 
     print(f"\n共有 {len(active_subscribers)} 个活跃订阅者")
 
-    # SMTP 配置（从环境变量读取）
-    smtp_config = {
-        "server": os.environ.get("SMTP_SERVER", "smtp.gmail.com"),
-        "port": os.environ.get("SMTP_PORT", "587"),
-        "username": os.environ.get("SMTP_USERNAME", ""),
-        "password": os.environ.get("SMTP_PASSWORD", ""),
-        "sender_email": os.environ.get("ALERT_SENDER_EMAIL", ""),
-        "sender_name": os.environ.get("ALERT_SENDER_NAME", "套利分析助手"),
-    }
+    secret = os.environ.get("FEISHU_WEBHOOK_SECRET", "")
+    dashboard_url = os.environ.get("DASHBOARD_URL", "https://YOUR_USERNAME.github.io/YOUR_REPO/")
 
-    if not smtp_config["username"] or not smtp_config["password"]:
-        print("\n错误: SMTP 配置不完整，请检查环境变量")
-        print("需要设置: SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, ALERT_SENDER_EMAIL")
-        return
-
-    # 设置 GitHub Actions 输出
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
             f.write("has_alerts=true\n")
 
-    # 渲染邮件模板
-    env = Environment(loader=FileSystemLoader(str(template_dir)))
-    template = env.get_template("email_alert.html")
+    card = build_feishu_card(alerts, date, dashboard_url)
 
-    # 确定仪表盘URL
-    dashboard_url = os.environ.get("DASHBOARD_URL", "https://YOUR_USERNAME.github.io/YOUR_REPO/")
-    unsubscribe_url = "https://github.com/YOUR_USERNAME/YOUR_REPO/issues/new?template=unsubscribe.yml"
-
-    html_content = template.render(
-        alerts=alerts,
-        date=date,
-        dashboard_url=dashboard_url,
-        unsubscribe_url=unsubscribe_url,
-    )
-
-    # 构建邮件主题
-    pair_names = [a["name_zh"] for a in alerts]
-    subject = f"期货套利极端信号 - {', '.join(pair_names)} 触发警报 ({date})"
-
-    # 发送邮件
-    print(f"\n开始发送邮件...")
+    print(f"\n开始发送飞书消息...")
     success_count = 0
     for subscriber in active_subscribers:
-        email = subscriber["email"]
-        if send_email(email, subject, html_content, smtp_config):
-            success_count += 1
+        webhook_url = subscriber.get("webhook_url", "")
+        if not webhook_url:
+            print(f"  跳过: {subscriber.get('name', '未知')} 没有 webhook URL")
+            continue
 
-    print(f"\n邮件发送完成: {success_count}/{len(active_subscribers)} 成功")
+        name = subscriber.get("name", webhook_url[-8:])
+        if send_to_feishu(webhook_url, card, secret=secret if secret else None):
+            print(f"  已发送到: {name}")
+            success_count += 1
+        else:
+            print(f"  发送失败: {name}")
+
+    print(f"\n飞书发送完成: {success_count}/{len(active_subscribers)} 成功")
 
 
 if __name__ == "__main__":
