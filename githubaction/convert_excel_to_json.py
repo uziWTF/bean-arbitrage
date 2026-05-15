@@ -8,7 +8,7 @@ import numpy as np
 import json
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 
 # 品种对配置（与 02_calculate_metrics.py 一致）
@@ -213,7 +213,7 @@ def main():
 
     # 组装最终JSON
     output = {
-        "last_updated": datetime.now().strftime("%Y-%m-%d"),
+        "last_updated": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d"),
         "pairs": pairs,
     }
 

@@ -7,7 +7,7 @@ import time
 import json
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 # 品种配置
@@ -316,7 +316,7 @@ def main():
 
     # 保存
     output = {
-        "scrape_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "scrape_date": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"),
         "commodities": data,
     }
 

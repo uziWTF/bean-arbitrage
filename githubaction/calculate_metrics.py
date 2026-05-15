@@ -5,7 +5,7 @@
 import json
 import numpy as np
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 
 # 品种对配置
@@ -173,7 +173,7 @@ def main():
 
     # 处理每个品种对
     alerts = []
-    scrape_date = commodities_data.get("scrape_date", datetime.now().strftime("%Y-%m-%d"))
+    scrape_date = commodities_data.get("scrape_date", datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d"))
 
     for pair in pairs_data["pairs"]:
         config = next((p for p in PAIRS_CONFIG if p["id"] == pair["id"]), None)
