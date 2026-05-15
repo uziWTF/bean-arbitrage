@@ -102,17 +102,6 @@
         </div>
         {% endfor %}
 
-        <!-- Subscribe Section -->
-        <div class="subscribe-section">
-            <h3>&#128231; 邮件订阅</h3>
-            <p>当品种对比值/差值出现极端信号（超过 1% 或 99% 分位）时，我们会通过邮件通知您</p>
-            <div class="subscribe-form">
-                <input type="email" id="subscribe-email" placeholder="请输入邮箱地址" class="subscribe-input">
-                <button onclick="subscribe()" class="subscribe-btn">&#9993; 订阅</button>
-            </div>
-            <div id="subscribe-msg" class="subscribe-msg"></div>
-        </div>
-
         <!-- Footer -->
         <footer>
             <p>数据来源: <a href="https://quote.eastmoney.com" target="_blank">东方财富网</a> | 每日自动更新 | <a href="{{ repo_url }}" target="_blank">GitHub 仓库</a></p>
@@ -296,25 +285,6 @@
                 // Responsive
                 window.addEventListener('resize', () => chart.resize());
             });
-        }
-
-        // Subscribe function
-        function subscribe() {
-            const emailInput = document.getElementById('subscribe-email');
-            const msgDiv = document.getElementById('subscribe-msg');
-            const email = emailInput.value.trim();
-
-            if (!email || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-                msgDiv.innerHTML = '<span style="color:#ff4757">请输入有效的邮箱地址</span>';
-                return;
-            }
-
-            const repoUrl = '{{ repo_url }}';
-            const title = encodeURIComponent('订阅邮件通知: ' + email);
-            const body = encodeURIComponent('### 邮箱地址\n\n' + email);
-            window.open(repoUrl + '/issues/new?title=' + title + '&body=' + body, '_blank');
-            msgDiv.innerHTML = '<span style="color:#00d4aa">✓ 请在新弹出的页面点击 Submit issue 完成订阅</span>';
-            emailInput.value = '';
         }
 
         // Initialize when DOM is ready

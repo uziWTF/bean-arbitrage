@@ -248,7 +248,7 @@ def main():
         print(f"  Z-Score: {z_score}")
 
         # 检查是否需要警报
-        if percentile <= 1.0 or percentile >= 99.0:
+        if percentile <= 4.0 or percentile >= 96.0:
             alerts.append({
                 "pair_id": pair["id"],
                 "name_zh": pair["name_zh"],
