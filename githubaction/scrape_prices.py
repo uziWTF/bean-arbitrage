@@ -21,6 +21,7 @@ COMMODITIES = [
     {"name": "棕榈油", "code_akshare": "P0", "code_eastmoney": "pm", "url": "https://quote.eastmoney.com/qihuo/pm.html"},
 ]
 
+COMMODITY_COUNT = len(COMMODITIES)
 
 # ============================================================
 # 第一层: akshare
@@ -34,56 +35,61 @@ def scrape_akshare() -> Optional[list]:
         return None
 
     results = []
+    failed_names = []
     for c in COMMODITIES:
         name = c["name"]
         symbol = c["code_akshare"]
-        try:
-            df = ak.futures_main_sina(symbol=symbol)
-            if df is None or df.empty:
-                print(f"  [akshare] {name}: 无数据")
-                continue
+        for attempt in range(2):
+            try:
+                df = ak.futures_main_sina(symbol=symbol)
+                if df is None or df.empty:
+                    print(f"  [akshare] {name}: 无数据")
+                    break
 
-            last = df.iloc[-1]
-            # 列: 日期, 开盘价, 最高价, 最低价, 收盘价, 成交量, 持仓量, 动态结算价
-            prev = df.iloc[-2] if len(df) >= 2 else None
+                last = df.iloc[-1]
+                prev = df.iloc[-2] if len(df) >= 2 else None
 
-            close_price = float(last.iloc[4])
-            open_price = float(last.iloc[1])
-            high = float(last.iloc[2])
-            low = float(last.iloc[3])
-            volume = int(last.iloc[5])
-            open_interest = int(last.iloc[6])
-            settle = float(last.iloc[7]) if len(last) > 7 else close_price
+                close_price = float(last.iloc[4])
+                open_price = float(last.iloc[1])
+                high = float(last.iloc[2])
+                low = float(last.iloc[3])
+                volume = int(last.iloc[5])
+                open_interest = int(last.iloc[6])
+                settle = float(last.iloc[7]) if len(last) > 7 else close_price
+                prev_settle = float(prev.iloc[7]) if prev is not None and len(prev) > 7 else close_price
+                change = round(close_price - prev_settle, 2)
+                date_str = str(last.iloc[0])
 
-            # 昨结算: 前一行的结算价
-            prev_settle = float(prev.iloc[7]) if prev is not None and len(prev) > 7 else close_price
+                results.append({
+                    "name": name,
+                    "url": c["url"],
+                    "date": date_str,
+                    "close_price": close_price,
+                    "open_price": open_price,
+                    "high": high,
+                    "low": low,
+                    "prev_settle": prev_settle,
+                    "change": change,
+                    "volume": volume,
+                    "open_interest": open_interest,
+                })
+                print(f"  [akshare] {name}: {date_str} 收盘={close_price}")
+                break
+            except Exception as e:
+                print(f"  [akshare] {name}: 第{attempt+1}次失败 - {e}")
+                if attempt == 0:
+                    time.sleep(2)
+                else:
+                    failed_names.append(name)
 
-            # 涨跌 = 收盘 - 昨结算
-            change = round(close_price - prev_settle, 2)
-
-            # 日期格式: 2026-05-14 → 2026-05-14
-            date_str = str(last.iloc[0])
-
-            results.append({
-                "name": name,
-                "url": c["url"],
-                "date": date_str,
-                "close_price": close_price,
-                "open_price": open_price,
-                "high": high,
-                "low": low,
-                "prev_settle": prev_settle,
-                "change": change,
-                "volume": volume,
-                "open_interest": open_interest,
-            })
-            print(f"  [akshare] {name}: {date_str} 收盘={close_price}")
-
-        except Exception as e:
-            print(f"  [akshare] {name}: 失败 - {e}")
-
-    if len(results) >= 4:
+    if len(results) == COMMODITY_COUNT:
         return results
+
+    print(f"[akshare] 获取 {len(results)}/{COMMODITY_COUNT} 个品种")
+    if len(results) >= 4:
+        print(f"[akshare] 缺少: {failed_names}")
+        return results
+
     print(f"[akshare] 仅获取 {len(results)} 个品种，不足4个，放弃")
     return None
 
@@ -107,6 +113,89 @@ def _parse_volume(text):
         return int(float(text.replace(",", "")))
     except Exception:
         return None
+
+
+def _scrape_single_commodity_selenium(driver, c):
+    """爬取单个品种的数据，带重试"""
+    name = c["name"]
+    url = c["url"]
+    for attempt in range(2):
+        try:
+            driver.get(url)
+            wait = WebDriverWait(driver, 30)
+            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "brief_info_c")))
+            time.sleep(3)
+
+            result = {
+                "name": name, "url": url, "date": "",
+                "close_price": None, "open_price": None,
+                "high": None, "low": None, "prev_settle": None,
+                "change": None, "volume": None, "open_interest": None,
+            }
+
+            # 日期
+            try:
+                time_text = driver.find_element(By.CLASS_NAME, "quote_title_l").find_element(By.CLASS_NAME, "quote_title_time").text
+                m = re.search(r"(\d{4}-\d{2}-\d{2})", time_text)
+                if m:
+                    result["date"] = m.group(1)
+            except Exception:
+                pass
+
+            # 最新价
+            try:
+                price_text = driver.find_element(By.CLASS_NAME, "zxj").find_element(By.TAG_NAME, "span").text.strip().replace(",", "")
+                result["close_price"] = float(price_text)
+            except Exception:
+                pass
+
+            # 涨跌
+            try:
+                spans = driver.find_element(By.CLASS_NAME, "zd").find_elements(By.TAG_NAME, "span")
+                if spans:
+                    result["change"] = float(spans[0].text.strip().replace(",", ""))
+            except Exception:
+                pass
+
+            # 详细信息
+            try:
+                tds = driver.find_element(By.CLASS_NAME, "brief_info_c").find_element(By.TAG_NAME, "table").find_elements(By.TAG_NAME, "td")
+                for td in tds:
+                    text = td.text.strip()
+                    try:
+                        val = td.find_element(By.TAG_NAME, "span").text.strip()
+                    except Exception:
+                        continue
+                    if "昨结算:" in text:
+                        result["prev_settle"] = _parse_number(val)
+                    elif "今开:" in text:
+                        result["open_price"] = _parse_number(val)
+                    elif "最高:" in text:
+                        result["high"] = _parse_number(val)
+                    elif "最低:" in text:
+                        result["low"] = _parse_number(val)
+                    elif "成交量:" in text:
+                        result["volume"] = _parse_volume(val)
+                    elif "持仓量:" in text:
+                        result["open_interest"] = _parse_volume(val)
+            except Exception:
+                pass
+
+            if result["close_price"] is not None:
+                print(f"  [Selenium] {name}: {result['date']} 收盘={result['close_price']}")
+                return result
+            else:
+                print(f"  [Selenium] {name}: 第{attempt+1}次未获取到收盘价")
+                if attempt == 0:
+                    time.sleep(2)
+
+        except Exception as e:
+            print(f"  [Selenium] {name}: 第{attempt+1}次失败 - {type(e).__name__}: {e}")
+            if attempt == 0:
+                time.sleep(2)
+
+    print(f"  [Selenium] {name}: 放弃")
+    return None
 
 
 def scrape_selenium() -> Optional[list]:
@@ -139,81 +228,15 @@ def scrape_selenium() -> Optional[list]:
         driver.set_page_load_timeout(30)
 
         for c in COMMODITIES:
-            name = c["name"]
-            url = c["url"]
-            try:
-                driver.get(url)
-                wait = WebDriverWait(driver, 20)
-                wait.until(EC.presence_of_element_located((By.CLASS_NAME, "brief_info_c")))
-                time.sleep(3)
+            result = _scrape_single_commodity_selenium(driver, c)
+            if result:
+                results.append(result)
+            time.sleep(1)
 
-                result = {
-                    "name": name, "url": url, "date": "",
-                    "close_price": None, "open_price": None,
-                    "high": None, "low": None, "prev_settle": None,
-                    "change": None, "volume": None, "open_interest": None,
-                }
-
-                # 日期
-                try:
-                    time_text = driver.find_element(By.CLASS_NAME, "quote_title_l").find_element(By.CLASS_NAME, "quote_title_time").text
-                    m = re.search(r"(\d{4}-\d{2}-\d{2})", time_text)
-                    if m:
-                        result["date"] = m.group(1)
-                except Exception:
-                    pass
-
-                # 最新价
-                try:
-                    price_text = driver.find_element(By.CLASS_NAME, "zxj").find_element(By.TAG_NAME, "span").text.strip().replace(",", "")
-                    result["close_price"] = float(price_text)
-                except Exception:
-                    pass
-
-                # 涨跌
-                try:
-                    spans = driver.find_element(By.CLASS_NAME, "zd").find_elements(By.TAG_NAME, "span")
-                    if spans:
-                        result["change"] = float(spans[0].text.strip().replace(",", ""))
-                except Exception:
-                    pass
-
-                # 详细信息
-                try:
-                    tds = driver.find_element(By.CLASS_NAME, "brief_info_c").find_element(By.TAG_NAME, "table").find_elements(By.TAG_NAME, "td")
-                    for td in tds:
-                        text = td.text.strip()
-                        try:
-                            val = td.find_element(By.TAG_NAME, "span").text.strip()
-                        except Exception:
-                            continue
-                        if "昨结算:" in text:
-                            result["prev_settle"] = _parse_number(val)
-                        elif "今开:" in text:
-                            result["open_price"] = _parse_number(val)
-                        elif "最高:" in text:
-                            result["high"] = _parse_number(val)
-                        elif "最低:" in text:
-                            result["low"] = _parse_number(val)
-                        elif "成交量:" in text:
-                            result["volume"] = _parse_volume(val)
-                        elif "持仓量:" in text:
-                            result["open_interest"] = _parse_volume(val)
-                except Exception:
-                    pass
-
-                if result["close_price"] is not None:
-                    results.append(result)
-                    print(f"  [Selenium] {name}: {result['date']} 收盘={result['close_price']}")
-                else:
-                    print(f"  [Selenium] {name}: 未获取到收盘价")
-
-            except Exception as e:
-                print(f"  [Selenium] {name}: 失败 - {e}")
-
-            time.sleep(2)
-
-        return results if len(results) >= 4 else None
+        if len(results) >= 4:
+            return results
+        print(f"[Selenium] 仅获取 {len(results)}/{COMMODITY_COUNT} 个品种，不足4个")
+        return None
 
     except Exception as e:
         print(f"[Selenium] 初始化失败: {e}")
@@ -237,50 +260,59 @@ def scrape_eastmoney_api() -> Optional[list]:
     for c in COMMODITIES:
         name = c["name"]
         code = c["code_eastmoney"]
-        try:
-            url = "https://push2.eastmoney.com/api/qt/stock/get"
-            params = {
-                "secid": f"115.{code}",
-                "fields": "f43,f44,f45,f46,f47,f48,f57,f58,f60,f170",
-                "ut": "fa5fd1943c7b386f172d6893dbbd4dd1",
-            }
-            resp = requests.get(url, params=params, timeout=10)
-            data = resp.json().get("data", {})
+        for attempt in range(2):
+            try:
+                url = "https://push2.eastmoney.com/api/qt/stock/get"
+                params = {
+                    "secid": f"115.{code}",
+                    "fields": "f43,f44,f45,f46,f47,f48,f57,f58,f60,f170",
+                    "ut": "fa5fd1943c7b386f172d6893dbbd4dd1",
+                }
+                resp = requests.get(url, params=params, timeout=10)
+                data = resp.json().get("data", {})
 
-            if not data or not data.get("f43"):
-                print(f"  [API] {name}: 无数据")
-                continue
+                if not data or not data.get("f43"):
+                    print(f"  [API] {name}: 无数据")
+                    break
 
-            # 东财API价格单位为分(除以100)
-            close_price = data["f43"] / 100
-            high = data.get("f44", 0) / 100 if data.get("f44") else None
-            low = data.get("f45", 0) / 100 if data.get("f45") else None
-            open_price = data.get("f46", 0) / 100 if data.get("f46") else None
-            prev_settle = data.get("f60", 0) / 100 if data.get("f60") else None
-            volume = data.get("f47")
-            open_interest = data.get("f48")
+                # 东财API价格单位为分(除以100)
+                close_price = data["f43"] / 100
+                high = data.get("f44", 0) / 100 if data.get("f44") else None
+                low = data.get("f45", 0) / 100 if data.get("f45") else None
+                open_price = data.get("f46", 0) / 100 if data.get("f46") else None
+                prev_settle = data.get("f60", 0) / 100 if data.get("f60") else None
+                volume = data.get("f47")
+                open_interest = data.get("f48")
 
-            change = round(close_price - prev_settle, 2) if prev_settle else None
+                change = round(close_price - prev_settle, 2) if prev_settle else None
 
-            results.append({
-                "name": name,
-                "url": c["url"],
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "close_price": close_price,
-                "open_price": open_price,
-                "high": high,
-                "low": low,
-                "prev_settle": prev_settle,
-                "change": change,
-                "volume": volume,
-                "open_interest": open_interest,
-            })
-            print(f"  [API] {name}: 收盘={close_price}")
+                results.append({
+                    "name": name,
+                    "url": c["url"],
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "close_price": close_price,
+                    "open_price": open_price,
+                    "high": high,
+                    "low": low,
+                    "prev_settle": prev_settle,
+                    "change": change,
+                    "volume": volume,
+                    "open_interest": open_interest,
+                })
+                print(f"  [API] {name}: 收盘={close_price}")
+                break
+            except Exception as e:
+                print(f"  [API] {name}: 第{attempt+1}次失败 - {e}")
+                if attempt == 0:
+                    time.sleep(1)
 
-        except Exception as e:
-            print(f"  [API] {name}: 失败 - {e}")
-
-    return results if len(results) >= 4 else None
+    if len(results) == COMMODITY_COUNT:
+        return results
+    if len(results) >= 4:
+        print(f"[API] 获取 {len(results)}/{COMMODITY_COUNT} 个品种")
+        return results
+    print(f"[API] 仅获取 {len(results)} 个品种，不足4个")
+    return None
 
 
 # ============================================================
@@ -330,6 +362,12 @@ def main():
     print(f"\n{'=' * 60}")
     print(f"获取完成! 共 {len(data)} / {len(COMMODITIES)} 个品种")
     print(f"数据已保存到: {output_path}")
+
+    # 检查缺失品种
+    fetched_names = {d["name"] for d in data}
+    missing = [c["name"] for c in COMMODITIES if c["name"] not in fetched_names]
+    if missing:
+        print(f"*** 警告: 缺少以下品种数据: {missing} ***")
     print("=" * 60)
 
 
