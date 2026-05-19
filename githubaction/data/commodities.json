@@ -1,6 +1,32 @@
 {
-  "scrape_date": "2026-05-19 18:50:38",
+  "scrape_date": "2026-05-19 23:04:06",
   "commodities": [
+    {
+      "name": "菜油",
+      "url": "https://quote.eastmoney.com/qihuo/OIM.html",
+      "date": "2026-05-19",
+      "close_price": 9789.0,
+      "open_price": 9577.0,
+      "high": 9799.0,
+      "low": 9536.0,
+      "prev_settle": 9539.0,
+      "change": 250.0,
+      "volume": 258441,
+      "open_interest": 250280
+    },
+    {
+      "name": "菜粕",
+      "url": "https://quote.eastmoney.com/qihuo/RMM.html",
+      "date": "2026-05-19",
+      "close_price": 2373.0,
+      "open_price": 2321.0,
+      "high": 2380.0,
+      "low": 2316.0,
+      "prev_settle": 2322.0,
+      "change": 51.0,
+      "volume": 745334,
+      "open_interest": 859076
+    },
     {
       "name": "豆油",
       "url": "https://quote.eastmoney.com/qihuo/Ym.html",
@@ -11,8 +37,21 @@
       "low": 8450.0,
       "prev_settle": 8447.0,
       "change": 141.0,
-      "volume": 328500,
-      "open_interest": 690000
+      "volume": 328489,
+      "open_interest": 689995
+    },
+    {
+      "name": "豆粕",
+      "url": "https://quote.eastmoney.com/qihuo/mm.html",
+      "date": "2026-05-19",
+      "close_price": 3038.0,
+      "open_price": 2991.0,
+      "high": 3039.0,
+      "low": 2986.0,
+      "prev_settle": 2979.0,
+      "change": 59.0,
+      "volume": 1325090,
+      "open_interest": 2546998
     },
     {
       "name": "豆一",
@@ -24,8 +63,8 @@
       "low": 4738.0,
       "prev_settle": 4741.0,
       "change": 50.0,
-      "volume": 207500,
-      "open_interest": 293600
+      "volume": 207528,
+      "open_interest": 293646
     },
     {
       "name": "豆二",
@@ -37,8 +76,8 @@
       "low": 3548.0,
       "prev_settle": 3541.0,
       "change": 108.0,
-      "volume": 279300,
-      "open_interest": 177600
+      "volume": 279269,
+      "open_interest": 177561
     },
     {
       "name": "棕榈油",
@@ -50,8 +89,8 @@
       "low": 9492.0,
       "prev_settle": 9505.0,
       "change": 167.0,
-      "volume": 645300,
-      "open_interest": 504300
+      "volume": 645269,
+      "open_interest": 504322
     }
   ]
 }
