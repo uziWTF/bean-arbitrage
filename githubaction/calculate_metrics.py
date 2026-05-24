@@ -3,6 +3,7 @@
 """
 
 import json
+import os
 import numpy as np
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -73,6 +74,13 @@ def save_json(path, data):
         json.dump(data, f, ensure_ascii=False)
 
 
+def env_flag(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def calculate_statistics(values):
     """计算统计信息"""
     arr = np.array(values, dtype=float)
@@ -120,6 +128,11 @@ def calculate_percentile(values, current_value):
     return round(float(count_below / len(arr) * 100), 2)
 
 
+def date_key(value):
+    """统一兼容历史里的日期和日期时间字符串。"""
+    return str(value).split(" ", 1)[0]
+
+
 def get_status(percentile):
     """根据百分位获取状态"""
     if percentile <= 1.0:
@@ -156,6 +169,11 @@ def main():
     print("=" * 60)
     print("开始计算品种对指标和百分位")
     print("=" * 60)
+    save_history = env_flag("SAVE_HISTORY", default=True)
+    if save_history:
+        print("模式: 保存历史数据并更新图表序列")
+    else:
+        print("模式: 仅更新最新行情、当前指标和告警，不写入历史图表序列")
 
     # 加载数据
     pairs_data = load_json(pairs_path)
@@ -174,6 +192,9 @@ def main():
     # 处理每个品种对
     alerts = []
     scrape_date = commodities_data.get("scrape_date", datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d"))
+    if " " in scrape_date:
+        scrape_date = scrape_date.split(" ", 1)[0]
+    scrape_time = commodities_data.get("scrape_time", scrape_date)
 
     for pair in pairs_data["pairs"]:
         config = next((p for p in PAIRS_CONFIG if p["id"] == pair["id"]), None)
@@ -196,26 +217,31 @@ def main():
         else:
             current_metric = price1 / price2 if price2 != 0 else 0
 
-        # 检查是否已有今天的数据
-        last_date = pair["data"][-1]["date"] if pair["data"] else ""
-        if last_date == scrape_date:
-            # 更新今天的数据
-            pair["data"][-1] = {
-                "date": scrape_date,
-                "price1": round(price1, 2),
-                "price2": round(price2, 2),
-                "metric": round(current_metric, 6),
-            }
-            print(f"\n[{pair['name_zh']}] 更新 {scrape_date} 数据")
+        print(f"\n[{pair['name_zh']}] 最新 {scrape_time}")
+
+        if save_history:
+            # 检查是否已有今天的数据
+            last_date = pair["data"][-1]["date"] if pair["data"] else ""
+            if date_key(last_date) == scrape_date:
+                # 更新今天的数据
+                pair["data"][-1] = {
+                    "date": scrape_date,
+                    "price1": round(price1, 2),
+                    "price2": round(price2, 2),
+                    "metric": round(current_metric, 6),
+                }
+                print(f"  更新 {scrape_date} 历史数据")
+            else:
+                # 添加新数据
+                pair["data"].append({
+                    "date": scrape_date,
+                    "price1": round(price1, 2),
+                    "price2": round(price2, 2),
+                    "metric": round(current_metric, 6),
+                })
+                print(f"  添加 {scrape_date} 历史数据")
         else:
-            # 添加新数据
-            pair["data"].append({
-                "date": scrape_date,
-                "price1": round(price1, 2),
-                "price2": round(price2, 2),
-                "metric": round(current_metric, 6),
-            })
-            print(f"\n[{pair['name_zh']}] 添加 {scrape_date} 数据")
+            print(f"  盘中更新: 不写入历史数据")
 
         # 重新计算统计信息
         metrics = [d["metric"] for d in pair["data"]]
@@ -238,7 +264,9 @@ def main():
             "status_text": status_text,
             "status_color": status_color,
             "z_score": z_score,
-            "date": scrape_date,
+            "date": scrape_time,
+            "data_date": scrape_date,
+            "saved_to_history": save_history,
         }
 
         metric_label = config["metric_label"]
@@ -266,7 +294,7 @@ def main():
     pairs_data["commodities"] = commodities_data["commodities"]
 
     # 更新时间戳
-    pairs_data["last_updated"] = scrape_date
+    pairs_data["last_updated"] = scrape_time
 
     # 保存更新后的数据
     save_json(pairs_path, pairs_data)
@@ -284,7 +312,7 @@ def main():
 
         # 保存警报信息供 send_alerts.py 使用
         alerts_path = data_dir / "alerts.json"
-        save_json(alerts_path, {"alerts": alerts, "date": scrape_date})
+        save_json(alerts_path, {"alerts": alerts, "date": scrape_time})
         print(f"警报数据已保存到: {alerts_path}")
     else:
         print("\n没有触发极端信号警报")

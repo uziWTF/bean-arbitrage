@@ -2,8 +2,12 @@ name: Daily Update and Deploy
 
 on:
   schedule:
-    # Run once per trading day after market close: 10:30 UTC = 18:30 Beijing time
-    - cron: '30 10 * * 1-5'
+    # 交易日北京时间 08:30：更新网页最新数据，触发信号则发飞书
+    - cron: '30 0 * * 1-5'
+    # 交易日北京时间 12:00：更新网页最新数据，触发信号则发飞书
+    - cron: '0 4 * * 1-5'
+    # 交易日北京时间 15:30：保存收盘数据，更新历史曲线，触发信号则发飞书
+    - cron: '30 7 * * 1-5'
   workflow_dispatch: # Manual trigger
 
 jobs:
@@ -25,11 +29,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'githubaction/requirements.txt'
 
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-
       - name: Install Python dependencies
         run: pip install -r githubaction/requirements.txt
 
@@ -37,6 +36,8 @@ jobs:
         run: python githubaction/scrape_prices.py
 
       - name: Calculate metrics
+        env:
+          SAVE_HISTORY: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '30 7 * * 1-5' }}
         run: python githubaction/calculate_metrics.py
 
       - name: Generate HTML site
@@ -59,7 +60,7 @@ jobs:
         if: hashFiles('githubaction/data/alerts.json') != ''
         env:
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
-          DASHBOARD_URL: ${{ github.server_url }}/${{ github.repository }}
+          DASHBOARD_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: python githubaction/send_alerts.py
 
       - name: Deploy to GitHub Pages

@@ -1,6 +1,6 @@
 """
 从多个数据源获取最新期货价格
-三层回退机制：akshare → Selenium网页爬取 → 东方财富API
+优先使用新浪网页行情接口，akshare 仅作为兜底日频数据源
 """
 
 import time
@@ -12,19 +12,116 @@ from typing import Optional
 
 # 品种配置
 COMMODITIES = [
-    {"name": "菜油", "code_akshare": "OI0", "code_eastmoney": "OIM", "url": "https://quote.eastmoney.com/qihuo/OIM.html"},
-    {"name": "菜粕", "code_akshare": "RM0", "code_eastmoney": "RMM", "url": "https://quote.eastmoney.com/qihuo/RMM.html"},
-    {"name": "豆油", "code_akshare": "Y0", "code_eastmoney": "Ym", "url": "https://quote.eastmoney.com/qihuo/Ym.html"},
-    {"name": "豆粕", "code_akshare": "M0", "code_eastmoney": "mm", "url": "https://quote.eastmoney.com/qihuo/mm.html"},
-    {"name": "豆一", "code_akshare": "A0", "code_eastmoney": "am", "url": "https://quote.eastmoney.com/qihuo/am.html"},
-    {"name": "豆二", "code_akshare": "B0", "code_eastmoney": "bm", "url": "https://quote.eastmoney.com/qihuo/bm.html"},
-    {"name": "棕榈油", "code_akshare": "P0", "code_eastmoney": "pm", "url": "https://quote.eastmoney.com/qihuo/pm.html"},
+    {"name": "菜油", "code_akshare": "OI0", "url": "https://finance.sina.com.cn/futures/quotes/OI0.shtml"},
+    {"name": "菜粕", "code_akshare": "RM0", "url": "https://finance.sina.com.cn/futures/quotes/RM0.shtml"},
+    {"name": "豆油", "code_akshare": "Y0", "url": "https://finance.sina.com.cn/futures/quotes/Y0.shtml"},
+    {"name": "豆粕", "code_akshare": "M0", "url": "https://finance.sina.com.cn/futures/quotes/M0.shtml"},
+    {"name": "豆一", "code_akshare": "A0", "url": "https://finance.sina.com.cn/futures/quotes/A0.shtml"},
+    {"name": "豆二", "code_akshare": "B0", "url": "https://finance.sina.com.cn/futures/quotes/B0.shtml"},
+    {"name": "棕榈油", "code_akshare": "P0", "url": "https://finance.sina.com.cn/futures/quotes/P0.shtml"},
 ]
 
 COMMODITY_COUNT = len(COMMODITIES)
+BJ_TZ = timezone(timedelta(hours=8))
+
+
+def _now_bj() -> datetime:
+    return datetime.now(BJ_TZ)
+
+
+def is_realtime_preferred_window(now: Optional[datetime] = None) -> bool:
+    """在 akshare 容易返回旧日频数据的时段，优先使用实时网页数据源。"""
+    now = now or _now_bj()
+    minutes = now.hour * 60 + now.minute
+    midday_start = 11 * 60 + 30
+    midday_end = 13 * 60 + 30
+    night_start = 23 * 60
+    morning_end = 9 * 60
+    return midday_start <= minutes <= midday_end or minutes >= night_start or minutes <= morning_end
 
 # ============================================================
-# 第一层: akshare
+# 第一层: 新浪网页实时行情
+# ============================================================
+def scrape_sina_realtime() -> Optional[list]:
+    """通过新浪行情网页接口获取主连实时数据。"""
+    import requests
+
+    symbols = ",".join(f"nf_{c['code_akshare']}" for c in COMMODITIES)
+    url = f"https://hq.sinajs.cn/list={symbols}"
+    headers = {
+        "Referer": "https://finance.sina.com.cn/",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+    }
+
+    text = ""
+    for attempt in range(2):
+        try:
+            resp = requests.get(url, headers=headers, timeout=15)
+            resp.raise_for_status()
+            text = resp.text
+            break
+        except Exception as e:
+            print(f"[Sina] 第{attempt+1}次请求失败: {e}")
+            if attempt == 0:
+                time.sleep(2)
+    if not text:
+        return None
+
+    rows = dict(re.findall(r'var hq_str_nf_([A-Z0-9]+)="([^"]*)";', text))
+    results = []
+
+    for c in COMMODITIES:
+        name = c["name"]
+        symbol = c["code_akshare"]
+        raw = rows.get(symbol)
+        if not raw:
+            print(f"  [Sina] {name}: 无数据")
+            continue
+
+        fields = raw.split(",")
+        try:
+            close_price = float(fields[8])
+            open_price = float(fields[2])
+            high = float(fields[3])
+            low = float(fields[4])
+            prev_settle = float(fields[10])
+            volume = int(float(fields[13]))
+            open_interest = int(float(fields[14]))
+            date_str = fields[17] if len(fields) > 17 and fields[17] else _now_bj().strftime("%Y-%m-%d")
+            change = round(close_price - prev_settle, 2)
+        except Exception as e:
+            print(f"  [Sina] {name}: 解析失败 - {e}")
+            continue
+
+        results.append({
+            "name": name,
+            "url": c["url"],
+            "date": date_str,
+            "close_price": close_price,
+            "open_price": open_price,
+            "high": high,
+            "low": low,
+            "prev_settle": prev_settle,
+            "change": change,
+            "volume": volume,
+            "open_interest": open_interest,
+        })
+        print(f"  [Sina] {name}: {date_str} 最新={close_price}")
+
+    if len(results) == COMMODITY_COUNT:
+        return results
+    if len(results) >= 4:
+        print(f"[Sina] 获取 {len(results)}/{COMMODITY_COUNT} 个品种")
+        return results
+    print(f"[Sina] 仅获取 {len(results)} 个品种，不足4个")
+    return None
+
+
+# ============================================================
+# 第二层: akshare
 # ============================================================
 def scrape_akshare() -> Optional[list]:
     """通过 akshare 的 futures_main_sina 获取主连数据"""
@@ -95,251 +192,43 @@ def scrape_akshare() -> Optional[list]:
 
 
 # ============================================================
-# 第二层: Selenium 网页爬取
+# 主函数: 数据源按时段回退
 # ============================================================
-def _parse_number(text):
-    text = text.strip().replace(",", "")
-    try:
-        return float(text)
-    except Exception:
-        return None
+def _run_source(label, scraper):
+    print(f"\n--- {label} ---")
+    return scraper()
 
 
-def _parse_volume(text):
-    text = text.strip()
-    try:
-        if "万" in text:
-            return int(float(text.replace("万", "")) * 10000)
-        return int(float(text.replace(",", "")))
-    except Exception:
-        return None
+def _resolve_data_date(data: list, now_bj: datetime) -> str:
+    dates = [item.get("date") for item in data if item.get("date")]
+    if not dates:
+        return now_bj.strftime("%Y-%m-%d")
+    return max(dates)
 
 
-def _scrape_single_commodity_selenium(driver, c):
-    """爬取单个品种的数据，带重试"""
-    name = c["name"]
-    url = c["url"]
-    for attempt in range(2):
-        try:
-            driver.get(url)
-            wait = WebDriverWait(driver, 30)
-            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "brief_info_c")))
-            time.sleep(3)
-
-            result = {
-                "name": name, "url": url, "date": "",
-                "close_price": None, "open_price": None,
-                "high": None, "low": None, "prev_settle": None,
-                "change": None, "volume": None, "open_interest": None,
-            }
-
-            # 日期
-            try:
-                time_text = driver.find_element(By.CLASS_NAME, "quote_title_l").find_element(By.CLASS_NAME, "quote_title_time").text
-                m = re.search(r"(\d{4}-\d{2}-\d{2})", time_text)
-                if m:
-                    result["date"] = m.group(1)
-            except Exception:
-                pass
-
-            # 最新价
-            try:
-                price_text = driver.find_element(By.CLASS_NAME, "zxj").find_element(By.TAG_NAME, "span").text.strip().replace(",", "")
-                result["close_price"] = float(price_text)
-            except Exception:
-                pass
-
-            # 涨跌
-            try:
-                spans = driver.find_element(By.CLASS_NAME, "zd").find_elements(By.TAG_NAME, "span")
-                if spans:
-                    result["change"] = float(spans[0].text.strip().replace(",", ""))
-            except Exception:
-                pass
-
-            # 详细信息
-            try:
-                tds = driver.find_element(By.CLASS_NAME, "brief_info_c").find_element(By.TAG_NAME, "table").find_elements(By.TAG_NAME, "td")
-                for td in tds:
-                    text = td.text.strip()
-                    try:
-                        val = td.find_element(By.TAG_NAME, "span").text.strip()
-                    except Exception:
-                        continue
-                    if "昨结算:" in text:
-                        result["prev_settle"] = _parse_number(val)
-                    elif "今开:" in text:
-                        result["open_price"] = _parse_number(val)
-                    elif "最高:" in text:
-                        result["high"] = _parse_number(val)
-                    elif "最低:" in text:
-                        result["low"] = _parse_number(val)
-                    elif "成交量:" in text:
-                        result["volume"] = _parse_volume(val)
-                    elif "持仓量:" in text:
-                        result["open_interest"] = _parse_volume(val)
-            except Exception:
-                pass
-
-            if result["close_price"] is not None:
-                print(f"  [Selenium] {name}: {result['date']} 收盘={result['close_price']}")
-                return result
-            else:
-                print(f"  [Selenium] {name}: 第{attempt+1}次未获取到收盘价")
-                if attempt == 0:
-                    time.sleep(2)
-
-        except Exception as e:
-            print(f"  [Selenium] {name}: 第{attempt+1}次失败 - {type(e).__name__}: {e}")
-            if attempt == 0:
-                time.sleep(2)
-
-    print(f"  [Selenium] {name}: 放弃")
-    return None
-
-
-def scrape_selenium() -> Optional[list]:
-    """通过 Selenium 爬取东方财富网页"""
-    try:
-        from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.chrome.options import Options
-    except ImportError:
-        print("[Selenium] 未安装，跳过")
-        return None
-
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-
-    driver = None
-    results = []
-    try:
-        driver = webdriver.Chrome(options=chrome_options)
-        driver.set_page_load_timeout(30)
-
-        for c in COMMODITIES:
-            result = _scrape_single_commodity_selenium(driver, c)
-            if result:
-                results.append(result)
-            time.sleep(1)
-
-        if len(results) >= 4:
-            return results
-        print(f"[Selenium] 仅获取 {len(results)}/{COMMODITY_COUNT} 个品种，不足4个")
-        return None
-
-    except Exception as e:
-        print(f"[Selenium] 初始化失败: {e}")
-        return None
-    finally:
-        if driver:
-            try:
-                driver.quit()
-            except Exception:
-                pass
-
-
-# ============================================================
-# 第三层: 东方财富 API
-# ============================================================
-def scrape_eastmoney_api() -> Optional[list]:
-    """通过东方财富 push2 API 获取行情"""
-    import requests
-
-    results = []
-    for c in COMMODITIES:
-        name = c["name"]
-        code = c["code_eastmoney"]
-        for attempt in range(2):
-            try:
-                url = "https://push2.eastmoney.com/api/qt/stock/get"
-                params = {
-                    "secid": f"115.{code}",
-                    "fields": "f43,f44,f45,f46,f47,f48,f57,f58,f60,f170",
-                    "ut": "fa5fd1943c7b386f172d6893dbbd4dd1",
-                }
-                resp = requests.get(url, params=params, timeout=10)
-                data = resp.json().get("data", {})
-
-                if not data or not data.get("f43"):
-                    print(f"  [API] {name}: 无数据")
-                    break
-
-                # 东财API价格单位为分(除以100)
-                close_price = data["f43"] / 100
-                high = data.get("f44", 0) / 100 if data.get("f44") else None
-                low = data.get("f45", 0) / 100 if data.get("f45") else None
-                open_price = data.get("f46", 0) / 100 if data.get("f46") else None
-                prev_settle = data.get("f60", 0) / 100 if data.get("f60") else None
-                volume = data.get("f47")
-                open_interest = data.get("f48")
-
-                change = round(close_price - prev_settle, 2) if prev_settle else None
-
-                results.append({
-                    "name": name,
-                    "url": c["url"],
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "close_price": close_price,
-                    "open_price": open_price,
-                    "high": high,
-                    "low": low,
-                    "prev_settle": prev_settle,
-                    "change": change,
-                    "volume": volume,
-                    "open_interest": open_interest,
-                })
-                print(f"  [API] {name}: 收盘={close_price}")
-                break
-            except Exception as e:
-                print(f"  [API] {name}: 第{attempt+1}次失败 - {e}")
-                if attempt == 0:
-                    time.sleep(1)
-
-    if len(results) == COMMODITY_COUNT:
-        return results
-    if len(results) >= 4:
-        print(f"[API] 获取 {len(results)}/{COMMODITY_COUNT} 个品种")
-        return results
-    print(f"[API] 仅获取 {len(results)} 个品种，不足4个")
-    return None
-
-
-# ============================================================
-# 主函数: 三层回退
-# ============================================================
 def main():
     print("=" * 60)
     print("开始获取期货最新价格")
-    print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    now_bj = _now_bj()
+    print(f"北京时间: {now_bj.strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
-    # 第一层: akshare
-    print("\n--- 第一层: akshare ---")
-    data = scrape_akshare()
+    if is_realtime_preferred_window(now_bj):
+        print("当前处于实时优先窗口，优先使用新浪网页行情，避免 akshare 日频旧数据")
 
-    # 第二层: Selenium
-    if data is None:
-        print("\n--- 第二层: Selenium 网页爬取 ---")
-        data = scrape_selenium()
+    source_order = [
+        ("第一层: 新浪网页实时行情", scrape_sina_realtime),
+        ("第二层: akshare 日频兜底", scrape_akshare),
+    ]
 
-    # 第三层: 东方财富 API
-    if data is None:
-        print("\n--- 第三层: 东方财富 API ---")
-        data = scrape_eastmoney_api()
+    data = None
+    for label, scraper in source_order:
+        data = _run_source(label, scraper)
+        if data is not None:
+            break
 
     if data is None:
-        print("\n三层数据源均失败，无法获取数据")
+        print("\n所有数据源均失败，无法获取数据")
         return
 
     # 按 COMMODITIES 顺序排序
@@ -347,8 +236,10 @@ def main():
     data.sort(key=lambda x: order.get(x["name"], 99))
 
     # 保存
+    now_bj = _now_bj()
     output = {
-        "scrape_date": datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S"),
+        "scrape_date": _resolve_data_date(data, now_bj),
+        "scrape_time": now_bj.strftime("%Y-%m-%d %H:%M:%S"),
         "commodities": data,
     }
 
