@@ -1,19 +1,19 @@
 {
   "scrape_date": "2026-08-06",
-  "scrape_time": "2026-08-06 14:31:32",
+  "scrape_time": "2026-08-06 18:08:36",
   "commodities": [
     {
       "name": "菜油",
       "url": "https://finance.sina.com.cn/futures/quotes/OI0.shtml",
       "date": "2026-08-06",
-      "close_price": 10130.0,
+      "close_price": 10151.0,
       "open_price": 10076.0,
-      "high": 10134.0,
+      "high": 10158.0,
       "low": 10054.0,
       "prev_settle": 10060.0,
-      "change": 70.0,
-      "volume": 222214,
-      "open_interest": 166321
+      "change": 91.0,
+      "volume": 221868,
+      "open_interest": 189052
     },
     {
       "name": "菜粕",
@@ -22,76 +22,76 @@
       "close_price": 2173.0,
       "open_price": 2176.0,
       "high": 2188.0,
-      "low": 2172.0,
+      "low": 2169.0,
       "prev_settle": 2186.0,
       "change": -13.0,
-      "volume": 557169,
-      "open_interest": 183126
+      "volume": 559286,
+      "open_interest": 202286
     },
     {
       "name": "豆油",
       "url": "https://finance.sina.com.cn/futures/quotes/Y0.shtml",
       "date": "2026-08-06",
-      "close_price": 8429.0,
+      "close_price": 8441.0,
       "open_price": 8411.0,
-      "high": 8439.0,
+      "high": 8442.0,
       "low": 8404.0,
       "prev_settle": 8417.0,
-      "change": 12.0,
-      "volume": 490143,
-      "open_interest": 147883
+      "change": 24.0,
+      "volume": 490699,
+      "open_interest": 162776
     },
     {
       "name": "豆粕",
       "url": "https://finance.sina.com.cn/futures/quotes/M0.shtml",
       "date": "2026-08-06",
-      "close_price": 3130.0,
+      "close_price": 3134.0,
       "open_price": 3115.0,
       "high": 3134.0,
       "low": 3107.0,
       "prev_settle": 3118.0,
-      "change": 12.0,
-      "volume": 1968791,
-      "open_interest": 557697
+      "change": 16.0,
+      "volume": 1980492,
+      "open_interest": 600807
     },
     {
       "name": "豆一",
       "url": "https://finance.sina.com.cn/futures/quotes/A0.shtml",
       "date": "2026-08-06",
-      "close_price": 4784.0,
+      "close_price": 4828.0,
       "open_price": 4745.0,
-      "high": 4789.0,
+      "high": 4828.0,
       "low": 4742.0,
       "prev_settle": 4746.0,
-      "change": 38.0,
-      "volume": 207714,
-      "open_interest": 129203
+      "change": 82.0,
+      "volume": 214661,
+      "open_interest": 172708
     },
     {
       "name": "豆二",
       "url": "https://finance.sina.com.cn/futures/quotes/B0.shtml",
       "date": "2026-08-06",
-      "close_price": 3801.0,
+      "close_price": 3807.0,
       "open_price": 3768.0,
-      "high": 3805.0,
+      "high": 3807.0,
       "low": 3767.0,
       "prev_settle": 3769.0,
-      "change": 32.0,
-      "volume": 121988,
-      "open_interest": 88105
+      "change": 38.0,
+      "volume": 121177,
+      "open_interest": 96360
     },
     {
       "name": "棕榈油",
       "url": "https://finance.sina.com.cn/futures/quotes/P0.shtml",
       "date": "2026-08-06",
-      "close_price": 9374.0,
+      "close_price": 9385.0,
       "open_price": 9395.0,
       "high": 9423.0,
       "low": 9342.0,
       "prev_settle": 9352.0,
-      "change": 22.0,
-      "volume": 304679,
-      "open_interest": 234183
+      "change": 33.0,
+      "volume": 302713,
+      "open_interest": 250894
     }
   ]
 }
