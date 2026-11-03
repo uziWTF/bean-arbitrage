@@ -1,6 +1,6 @@
 {
   "scrape_date": "2026-11-03",
-  "scrape_time": "2026-11-03 15:03:17",
+  "scrape_time": "2026-11-03 19:40:36",
   "commodities": [
     {
       "name": "菜油",
@@ -38,8 +38,8 @@
       "low": 8894.0,
       "prev_settle": 9063.0,
       "change": -125.0,
-      "volume": 503501,
-      "open_interest": 315280
+      "volume": 503334,
+      "open_interest": 315454
     },
     {
       "name": "豆粕",
@@ -51,8 +51,8 @@
       "low": 3138.0,
       "prev_settle": 3187.0,
       "change": -40.0,
-      "volume": 2007515,
-      "open_interest": 994173
+      "volume": 2007418,
+      "open_interest": 994270
     },
     {
       "name": "豆一",
@@ -64,8 +64,8 @@
       "low": 5193.0,
       "prev_settle": 5293.0,
       "change": -84.0,
-      "volume": 355601,
-      "open_interest": 251043
+      "volume": 355588,
+      "open_interest": 251056
     },
     {
       "name": "豆二",
@@ -77,8 +77,8 @@
       "low": 3923.0,
       "prev_settle": 4008.0,
       "change": -70.0,
-      "volume": 123747,
-      "open_interest": 170445
+      "volume": 123724,
+      "open_interest": 170468
     },
     {
       "name": "棕榈油",
@@ -90,8 +90,8 @@
       "low": 9180.0,
       "prev_settle": 9308.0,
       "change": -92.0,
-      "volume": 528758,
-      "open_interest": 388771
+      "volume": 528689,
+      "open_interest": 388840
     }
   ]
 }
